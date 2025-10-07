@@ -46,15 +46,16 @@ func main() {
 	log.Println("Connected to Redis")
 
 	userRepo := repository.NewUserRepository(dbPool)
+	sessionRepo := repository.NewSessionRepository(dbPool)
 	tokenManager := jwt.NewTokenManager(cfg.JWTSecret)
-	authService := service.NewAuthService(userRepo, tokenManager)
+	authService := service.NewAuthService(userRepo, sessionRepo, tokenManager)
 
 	authHandler := handler.NewAuthHandler(authService)
 	userHandler := handler.NewUserHandler(userRepo)
 
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.Default()
-	
+
 	router.Use(func(c *gin.Context) {
 		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
 		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
@@ -84,12 +85,19 @@ func main() {
 			auth.POST("/register", authHandler.Register)
 			auth.POST("/login", authHandler.Login)
 			auth.POST("/refresh", authHandler.RefreshToken)
+			auth.POST("/logout", authHandler.Logout)
 		}
 	}
 
 	protected := v1.Group("")
 	protected.Use(middleware.AuthMiddleware(tokenManager))
 	{
+		auth := protected.Group("/auth")
+		{
+			auth.POST("/logout-all", authHandler.LogoutAll)
+			auth.GET("/sessions", authHandler.GetActiveSessions)
+		}
+
 		users := protected.Group("/users")
 		{
 			users.GET("/me", userHandler.GetMe)

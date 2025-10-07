@@ -3,12 +3,14 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/zhanserikAmangeldi/user-service/internal/dto"
 	"github.com/zhanserikAmangeldi/user-service/internal/models"
 	"github.com/zhanserikAmangeldi/user-service/internal/repository"
 	"github.com/zhanserikAmangeldi/user-service/pkg/jwt"
 	"golang.org/x/crypto/bcrypt"
 	"strings"
+	"time"
 )
 
 var (
@@ -18,17 +20,23 @@ var (
 
 type AuthService struct {
 	userRepo     *repository.UserRepository
+	sessionRepo  *repository.SessionRepository
 	tokenManager *jwt.TokenManager
 }
 
-func NewAuthService(userRepo *repository.UserRepository, tokenManager *jwt.TokenManager) *AuthService {
+func NewAuthService(
+	userRepo *repository.UserRepository,
+	sessionRepo *repository.SessionRepository,
+	tokenManager *jwt.TokenManager,
+) *AuthService {
 	return &AuthService{
 		userRepo:     userRepo,
+		sessionRepo:  sessionRepo,
 		tokenManager: tokenManager,
 	}
 }
 
-func (s *AuthService) Register(ctx context.Context, req *dto.RegisterUserRequest) (*dto.AuthResponse, error) {
+func (s *AuthService) Register(ctx context.Context, req *dto.RegisterUserRequest, userAgent, ipAddress *string) (*dto.AuthResponse, error) {
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, err
@@ -62,6 +70,19 @@ func (s *AuthService) Register(ctx context.Context, req *dto.RegisterUserRequest
 		return nil, err
 	}
 
+	session := &repository.Session{
+		UserID:       user.ID,
+		RefreshToken: refreshToken,
+		AccessToken:  accessToken,
+		UserAgent:    userAgent,
+		IPAddress:    ipAddress,
+		ExpiresAt:    expiresAt,
+	}
+
+	if err := s.sessionRepo.Create(ctx, session); err != nil {
+		return nil, err
+	}
+
 	return &dto.AuthResponse{
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
@@ -70,7 +91,7 @@ func (s *AuthService) Register(ctx context.Context, req *dto.RegisterUserRequest
 	}, nil
 }
 
-func (s *AuthService) Login(ctx context.Context, req *dto.LoginRequest) (*dto.AuthResponse, error) {
+func (s *AuthService) Login(ctx context.Context, req *dto.LoginRequest, userAgent, ipAddress *string) (*dto.AuthResponse, error) {
 	var user *models.User
 	var err error
 
@@ -97,8 +118,21 @@ func (s *AuthService) Login(ctx context.Context, req *dto.LoginRequest) (*dto.Au
 		return nil, err
 	}
 
-	refreshToken, _, err := s.tokenManager.GenerateRefreshToken(user.ID, user.Username, user.Email)
+	refreshToken, refreshExpiresAt, err := s.tokenManager.GenerateRefreshToken(user.ID, user.Username, user.Email)
 	if err != nil {
+		return nil, err
+	}
+
+	session := &repository.Session{
+		UserID:       user.ID,
+		RefreshToken: refreshToken,
+		AccessToken:  accessToken,
+		UserAgent:    userAgent,
+		IPAddress:    ipAddress,
+		ExpiresAt:    refreshExpiresAt,
+	}
+
+	if err := s.sessionRepo.Create(ctx, session); err != nil {
 		return nil, err
 	}
 
@@ -112,7 +146,21 @@ func (s *AuthService) Login(ctx context.Context, req *dto.LoginRequest) (*dto.Au
 	}, nil
 }
 
-func (s *AuthService) RefreshToken(ctx context.Context, refreshToken string) (*dto.AuthResponse, error) {
+func (s *AuthService) RefreshToken(ctx context.Context, refreshToken string, userAgent, ipAddress *string) (*dto.AuthResponse, error) {
+	_, err := s.sessionRepo.GetByRefreshToken(ctx, refreshToken)
+	if err != nil {
+		if errors.Is(err, repository.ErrSessionNotFound) {
+			return nil, errors.New("invalid refresh token")
+		}
+		if errors.Is(err, repository.ErrSessionExpired) {
+			return nil, errors.New("refresh token expired")
+		}
+		if errors.Is(err, repository.ErrSessionRevoked) {
+			return nil, errors.New("session revoked")
+		}
+		return nil, err
+	}
+
 	claims, err := s.tokenManager.ValidateToken(refreshToken)
 	if err != nil {
 		return nil, err
@@ -123,20 +171,71 @@ func (s *AuthService) RefreshToken(ctx context.Context, refreshToken string) (*d
 		return nil, err
 	}
 
-	newAccessToken, expiresAt, err := s.tokenManager.GenerateAccessToken(user.ID, user.Username, user.Email)
+	newAccessToken, accessExpiresAt, err := s.tokenManager.GenerateAccessToken(user.ID, user.Username, user.Email)
 	if err != nil {
 		return nil, err
 	}
 
-	newRefreshToken, _, err := s.tokenManager.GenerateRefreshToken(user.ID, user.Username, user.Email)
+	newRefreshToken, refreshExpiresAt, err := s.tokenManager.GenerateRefreshToken(user.ID, user.Username, user.Email)
 	if err != nil {
+		return nil, err
+	}
+
+	if err := s.sessionRepo.Revoke(ctx, refreshToken); err != nil {
+		return nil, err
+	}
+
+	newSession := &repository.Session{
+		UserID:       user.ID,
+		RefreshToken: newRefreshToken,
+		AccessToken:  newAccessToken,
+		UserAgent:    userAgent,
+		IPAddress:    ipAddress,
+		ExpiresAt:    refreshExpiresAt,
+	}
+
+	if err := s.sessionRepo.Create(ctx, newSession); err != nil {
 		return nil, err
 	}
 
 	return &dto.AuthResponse{
 		AccessToken:  newAccessToken,
 		RefreshToken: newRefreshToken,
-		ExpiresIn:    int64(expiresAt.Sub(expiresAt.Add(-24 * 3600)).Seconds()),
+		ExpiresIn:    int64(accessExpiresAt.Sub(time.Now()).Seconds()),
 		User:         user,
+	}, nil
+}
+
+func (s *AuthService) Logout(ctx context.Context, refreshToken string) error {
+	return s.sessionRepo.Revoke(ctx, refreshToken)
+}
+
+func (s *AuthService) LogoutAll(ctx context.Context, userID int64) error {
+	return s.sessionRepo.RevokeAllByUserID(ctx, userID)
+}
+
+func (s *AuthService) GetActiveSessions(ctx context.Context, userID int64, currentRefreshToken string) (*models.SessionListResponse, error) {
+	sessions, err := s.sessionRepo.GetAllByUserID(ctx, userID)
+	fmt.Println("check 1")
+	if err != nil {
+		return nil, err
+	}
+	fmt.Print("check 2")
+
+	sessionInfos := make([]*models.SessionInfo, 0, len(sessions))
+	for _, sess := range sessions {
+		sessionInfos = append(sessionInfos, &models.SessionInfo{
+			ID:        sess.ID,
+			UserAgent: sess.UserAgent,
+			IPAddress: sess.IPAddress,
+			CreatedAt: sess.CreatedAt,
+			ExpiresAt: sess.ExpiresAt,
+			IsCurrent: sess.RefreshToken == currentRefreshToken,
+		})
+	}
+
+	return &models.SessionListResponse{
+		Sessions: sessionInfos,
+		Total:    len(sessionInfos),
 	}, nil
 }

@@ -2,6 +2,7 @@ package handler
 
 import (
 	"errors"
+	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/zhanserikAmangeldi/user-service/internal/dto"
 	"github.com/zhanserikAmangeldi/user-service/internal/middleware"
@@ -19,6 +20,7 @@ func NewUserHandler(userRepo *repository.UserRepository) *UserHandler {
 
 func (h *UserHandler) GetMe(c *gin.Context) {
 	userID := middleware.GetUserID(c)
+	fmt.Println(userID)
 	if userID == 0 {
 		c.JSON(http.StatusUnauthorized, dto.ErrorResponse{
 			Error: "unauthorized",

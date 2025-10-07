@@ -10,7 +10,7 @@ import (
 
 const (
 	authorizationHeader = "Authorization"
-	userIDKey           = "userID"
+	userIDKey           = "user_id"
 	usernameKey         = "username"
 	emailKey            = "email"
 )
