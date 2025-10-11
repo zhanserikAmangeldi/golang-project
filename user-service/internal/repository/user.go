@@ -181,3 +181,13 @@ func (r *UserRepository) UpdateLastSeen(ctx context.Context, userID int64) error
 	_, err := r.db.Exec(ctx, query, userID, time.Now())
 	return err
 }
+
+func (r *UserRepository) MarkVerified(ctx context.Context, userID int64) error {
+	query := `
+		UPDATE users
+		SET is_verified = TRUE, updated_at = NOW()
+		WHERE id = $1
+	`
+	_, err := r.db.Exec(ctx, query, userID)
+	return err
+}

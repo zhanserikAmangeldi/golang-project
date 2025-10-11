@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"github.com/zhanserikAmangeldi/user-service/internal/dto"
@@ -22,17 +24,27 @@ type AuthService struct {
 	userRepo     *repository.UserRepository
 	sessionRepo  *repository.SessionRepository
 	tokenManager *jwt.TokenManager
+	emailRepo    *repository.EmailVerificationRepository
+	emailSender  EmailSender
+}
+
+type EmailSender interface {
+	SendVerificationEmail(to, username, token string) error
 }
 
 func NewAuthService(
 	userRepo *repository.UserRepository,
 	sessionRepo *repository.SessionRepository,
 	tokenManager *jwt.TokenManager,
+	emailRepo *repository.EmailVerificationRepository,
+	emailSender EmailSender,
 ) *AuthService {
 	return &AuthService{
 		userRepo:     userRepo,
 		sessionRepo:  sessionRepo,
 		tokenManager: tokenManager,
+		emailRepo:    emailRepo,
+		emailSender:  emailSender,
 	}
 }
 
@@ -59,6 +71,22 @@ func (s *AuthService) Register(ctx context.Context, req *dto.RegisterUserRequest
 		}
 		return nil, err
 	}
+
+	token, err := s.generateVerificationToken()
+	if err != nil {
+		return nil, err
+	}
+
+	ev := &models.EmailVerification{
+		UserID:    user.ID,
+		Token:     token,
+		ExpiresAt: time.Now().Add(time.Hour * 24),
+	}
+	if err := s.emailRepo.Create(ctx, ev); err != nil {
+		return nil, err
+	}
+
+	_ = s.emailSender.SendVerificationEmail(user.Email, user.Username, token)
 
 	accessToken, expiresAt, err := s.tokenManager.GenerateAccessToken(user.ID, user.Username, user.Email)
 	if err != nil {
@@ -238,4 +266,25 @@ func (s *AuthService) GetActiveSessions(ctx context.Context, userID int64, curre
 		Sessions: sessionInfos,
 		Total:    len(sessionInfos),
 	}, nil
+}
+
+func (s *AuthService) generateVerificationToken() (string, error) {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(b), nil
+}
+
+func (s *AuthService) VerifyEmail(ctx context.Context, token string) error {
+	ev, err := s.emailRepo.GetByToken(ctx, token)
+	if err != nil {
+		return err
+	}
+
+	if err := s.userRepo.MarkVerified(ctx, ev.UserID); err != nil {
+		return err
+	}
+
+	return s.emailRepo.MarkVerified(ctx, ev.ID)
 }
