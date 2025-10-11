@@ -8,6 +8,7 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/zhanserikAmangeldi/user-service/internal/config"
 	"github.com/zhanserikAmangeldi/user-service/internal/handler"
+	"github.com/zhanserikAmangeldi/user-service/internal/mailer"
 	"github.com/zhanserikAmangeldi/user-service/internal/middleware"
 	"github.com/zhanserikAmangeldi/user-service/internal/repository"
 	"github.com/zhanserikAmangeldi/user-service/internal/service"
@@ -45,13 +46,28 @@ func main() {
 	}
 	log.Println("Connected to Redis")
 
+	render := mailer.NewTemplateRender("internal/mailer/templates")
+
+	smtp := mailer.SMTPMailer{
+		Host:    "smtp.gmail.com",
+		Port:    587,
+		User:    "amangeldi.janserik2017@gmail.com",
+		Pass:    "xsts bhls apvn ucol",
+		From:    "Your new best chat application :))) <noreply@chat.com>",
+		BaseURL: "localhost:8081",
+		Render:  render,
+	}
+
 	userRepo := repository.NewUserRepository(dbPool)
 	sessionRepo := repository.NewSessionRepository(dbPool)
+	emailRepo := repository.NewEmailVerificationRepository(dbPool)
+
 	tokenManager := jwt.NewTokenManager(cfg.JWTSecret)
-	authService := service.NewAuthService(userRepo, sessionRepo, tokenManager)
+	authService := service.NewAuthService(userRepo, sessionRepo, tokenManager, emailRepo, &smtp)
 
 	authHandler := handler.NewAuthHandler(authService)
 	userHandler := handler.NewUserHandler(userRepo)
+	emailVerificationHandler := handler.NewEmailVerificationHandler(authService)
 
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.Default()
@@ -77,6 +93,8 @@ func main() {
 			"redis":    "connected",
 		})
 	})
+
+	router.GET("/verify-email", emailVerificationHandler.VerifyEmail)
 
 	v1 := router.Group("/api/v1")
 	{
