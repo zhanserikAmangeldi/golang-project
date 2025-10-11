@@ -27,7 +27,7 @@ func NewTokenManager(secretKey string) *TokenManager {
 }
 
 func (tm *TokenManager) GenerateAccessToken(userId int64, username, email string) (string, time.Time, error) {
-	expiresAt := time.Now().Add(time.Hour * 24)
+	expiresAt := time.Now().Add(time.Minute * 15)
 
 	claims := Claims{
 		UserId:   userId,

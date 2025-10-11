@@ -6,11 +6,13 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/redis/go-redis/v9"
 	"github.com/zhanserikAmangeldi/user-service/internal/dto"
 	"github.com/zhanserikAmangeldi/user-service/internal/models"
 	"github.com/zhanserikAmangeldi/user-service/internal/repository"
 	"github.com/zhanserikAmangeldi/user-service/pkg/jwt"
 	"golang.org/x/crypto/bcrypt"
+	"log"
 	"strings"
 	"time"
 )
@@ -26,6 +28,7 @@ type AuthService struct {
 	tokenManager *jwt.TokenManager
 	emailRepo    *repository.EmailVerificationRepository
 	emailSender  EmailSender
+	redisClient  *redis.Client
 }
 
 type EmailSender interface {
@@ -38,6 +41,7 @@ func NewAuthService(
 	tokenManager *jwt.TokenManager,
 	emailRepo *repository.EmailVerificationRepository,
 	emailSender EmailSender,
+	redisClient *redis.Client,
 ) *AuthService {
 	return &AuthService{
 		userRepo:     userRepo,
@@ -45,6 +49,7 @@ func NewAuthService(
 		tokenManager: tokenManager,
 		emailRepo:    emailRepo,
 		emailSender:  emailSender,
+		redisClient:  redisClient,
 	}
 }
 
@@ -234,11 +239,46 @@ func (s *AuthService) RefreshToken(ctx context.Context, refreshToken string, use
 	}, nil
 }
 
-func (s *AuthService) Logout(ctx context.Context, refreshToken string) error {
+func (s *AuthService) Logout(ctx context.Context, refreshToken, accessToken string) error {
+	claims, err := s.tokenManager.ValidateToken(accessToken)
+	if err == nil {
+		ttl := time.Until(claims.ExpiresAt.Time)
+		if ttl > 0 {
+			key := fmt.Sprintf("revoked:%s", accessToken)
+			_ = s.redisClient.Set(ctx, key, "revoked", ttl).Err()
+			log.Printf("[INFO] Tokens blacklisted for userID=%s (accessToken=%s..., refreshToken=%s...)",
+				claims.UserId, accessToken[:10], refreshToken[:10])
+		}
+	} else {
+		return err
+	}
+	fmt.Println("test")
+
 	return s.sessionRepo.Revoke(ctx, refreshToken)
 }
 
 func (s *AuthService) LogoutAll(ctx context.Context, userID int64) error {
+	sessions, err := s.sessionRepo.GetAllByUserID(ctx, userID)
+	if err != nil {
+		return err
+	}
+
+	for _, sess := range sessions {
+		accessToken := sess.AccessToken
+		if accessToken == "" {
+			continue
+		}
+
+		claims, err := s.tokenManager.ValidateToken(accessToken)
+		if err == nil {
+			ttl := time.Until(claims.ExpiresAt.Time)
+			if ttl > 0 {
+				key := fmt.Sprintf("revoked:%s", accessToken)
+				_ = s.redisClient.Set(ctx, key, "revoked", ttl).Err()
+			}
+		}
+	}
+
 	return s.sessionRepo.RevokeAllByUserID(ctx, userID)
 }
 

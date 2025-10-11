@@ -27,6 +27,11 @@ type RefreshTokenRequest struct {
 	RefreshToken string `json:"refresh_token" binding:"required"`
 }
 
+type TokensRequest struct {
+	AccessToken  string `json:"access_token" binding:"required"`
+	RefreshToken string `json:"refresh_token" binding:"required"`
+}
+
 type UpdateUserRequest struct {
 	DisplayName *string `json:"display_name,omitempty" binding:"omitempty,max=100"`
 	AvatarURL   *string `json:"avatar_url,omitempty" binding:"omitempty,url"`
