@@ -1,17 +1,19 @@
+version: "3.9"
+
 services:
   postgres:
     image: postgres:15-alpine
     container_name: chat_postgres
     environment:
-      POSTGRES_DB: chatapp
-      POSTGRES_USER: chatuser
-      POSTGRES_PASSWORD: chatpass123
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
     ports:
-      - "54321:5432"
+      - "${DB_PORT}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U chatuser -d chatapp"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -22,7 +24,7 @@ services:
     image: redis:7-alpine
     container_name: chat_redis
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT}:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -37,8 +39,8 @@ services:
     image: rabbitmq:3-management-alpine
     container_name: chat_rabbitmq
     environment:
-      RABBITMQ_DEFAULT_USER: admin
-      RABBITMQ_DEFAULT_PASS: admin123
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
     ports:
       - "5672:5672"
       - "15672:15672"
@@ -49,6 +51,24 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - chat-network
+
+  chat_service:
+    build: ./user-service
+    container_name: chat_service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    env_file:
+      - .env
+    ports:
+      - "${HTTP_PORT}:${HTTP_PORT}"
+      - "${GRPC_PORT}:${GRPC_PORT}"
     networks:
       - chat-network
 
