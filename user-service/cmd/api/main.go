@@ -63,7 +63,7 @@ func main() {
 	emailRepo := repository.NewEmailVerificationRepository(dbPool)
 
 	tokenManager := jwt.NewTokenManager(cfg.JWTSecret)
-	authService := service.NewAuthService(userRepo, sessionRepo, tokenManager, emailRepo, &smtp)
+	authService := service.NewAuthService(userRepo, sessionRepo, tokenManager, emailRepo, &smtp, redisClient)
 
 	authHandler := handler.NewAuthHandler(authService)
 	userHandler := handler.NewUserHandler(userRepo)
@@ -108,7 +108,7 @@ func main() {
 	}
 
 	protected := v1.Group("")
-	protected.Use(middleware.AuthMiddleware(tokenManager))
+	protected.Use(middleware.AuthMiddleware(tokenManager, redisClient))
 	{
 		auth := protected.Group("/auth")
 		{
