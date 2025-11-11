@@ -3,9 +3,13 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
+	"net/http"
+
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
+
 	"github.com/zhanserikAmangeldi/user-service/internal/config"
 	"github.com/zhanserikAmangeldi/user-service/internal/handler"
 	"github.com/zhanserikAmangeldi/user-service/internal/mailer"
@@ -13,16 +17,15 @@ import (
 	"github.com/zhanserikAmangeldi/user-service/internal/repository"
 	"github.com/zhanserikAmangeldi/user-service/internal/service"
 	"github.com/zhanserikAmangeldi/user-service/pkg/jwt"
-	"log"
-	"net/http"
 )
 
 func main() {
 	cfg := config.LoadConfig()
 	ctx := context.Background()
 
-	dbURL := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable",
-		cfg.DBUser, cfg.DBPassword, cfg.DBHost, cfg.DBPort, cfg.DBName)
+	//dbURL := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable",
+	//	cfg.DBUser, cfg.DBPassword, cfg.DBHost, cfg.DBPort, cfg.DBName)
+	dbURL := "postgres://chatuser:chatpass123@chat_postgres:5432/chatapp?sslmode=disable"
 
 	dbPool, err := pgxpool.New(ctx, dbURL)
 	if err != nil {
