@@ -27,6 +27,7 @@ FROM alpine:3.19
 WORKDIR /app
 
 COPY --from=builder /app/user-service .
+COPY --from=builder /app/internal/migration/migrations ./internal/migration/migrations
 
 EXPOSE 8081
 
