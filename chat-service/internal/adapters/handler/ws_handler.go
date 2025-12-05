@@ -6,7 +6,7 @@ import (
 	"strconv"
 
 	ws "github.com/gorilla/websocket"
-	"github.com/zhanserikAmangeldi/chat-service/internal/adapters/websocket"
+	"chat-service/internal/adapters/websocket"
 )
 
 var upgrader = ws.Upgrader{

@@ -5,9 +5,9 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
-	"github.com/zhanserikAmangeldi/chat-service/internal/config"
-	"github.com/zhanserikAmangeldi/chat-service/internal/handlers"
-	"github.com/zhanserikAmangeldi/chat-service/internal/middleware"
+	"chat-service/internal/config"
+	"chat-service/internal/handlers"
+	"chat-service/internal/middleware"
 )
 
 func NewRouter(db *sql.DB, cfg config.Config) http.Handler {

@@ -4,22 +4,24 @@ import (
 	"context"
 	"encoding/json"
 	"time"
+	userpb  "github.com/zhanserikAmangeldi/proto/userpb"
+	"chat-service/internal/adapters/websocket"
 
-	"github.com/zhanserikAmangeldi/chat-service/internal/adapters/websocket"
-
-	"github.com/zhanserikAmangeldi/chat-service/internal/core/domain"
-	"github.com/zhanserikAmangeldi/chat-service/internal/core/ports"
+	"chat-service/internal/core/domain"
+	"chat-service/internal/core/ports"
 )
 
 type ChatService struct {
 	repo      ports.ChatRepository
 	wsManager *websocket.ClientManager
+	userClient userpb.UserServiceClient 
 }
 
-func NewChatService(repo ports.ChatRepository, wsManager *websocket.ClientManager) *ChatService {
+func NewChatService(repo ports.ChatRepository, wsManager *websocket.ClientManager, userClient userpb.UserServiceClient) *ChatService {
 	return &ChatService{
 		repo:      repo,
 		wsManager: wsManager,
+		userClient: userClient
 	}
 }
 
@@ -28,6 +30,12 @@ func NewChatService(repo ports.ChatRepository, wsManager *websocket.ClientManage
 // 2. Save message
 func (s *ChatService) SendMessage(ctx context.Context, senderID, recipientID int64, content string) (*domain.Message, error) {
 	// 1. Check for existing conversation
+	if _, err := s.userClient.GetUser(ctx, &userpb.UserRequest{UserId: senderID}); err != nil {
+		return nil, err
+	}
+	if _, err := s.userClient.GetUser(ctx, &userpb.UserRequest{UserId: recipientID}); err != nil {
+		return nil, err
+	}
 	conv, err := s.repo.FindOneToOneConversation(ctx, senderID, recipientID)
 	if err != nil {
 		return nil, err
@@ -46,11 +54,17 @@ func (s *ChatService) SendMessage(ctx context.Context, senderID, recipientID int
 		conv = newConv
 
 		// Add participants
-		p1 := &domain.Participant{ConversationID: conv.ID, UserID: senderID, JoinedAt: time.Now()}
-		p2 := &domain.Participant{ConversationID: conv.ID, UserID: recipientID, JoinedAt: time.Now()}
+		s.repo.AddParticipant(ctx, &domain.Participant{
+			ConversationID: conv.ID,
+			UserID:         senderID,
+			JoinedAt:       time.Now(),
+		})
 
-		s.repo.AddParticipant(ctx, p1)
-		s.repo.AddParticipant(ctx, p2)
+		s.repo.AddParticipant(ctx, &domain.Participant{
+			ConversationID: conv.ID,
+			UserID:         recipientID,
+			JoinedAt:       time.Now(),
+		})
 	}
 
 	// 3. Create the Message object
@@ -71,10 +85,7 @@ func (s *ChatService) SendMessage(ctx context.Context, senderID, recipientID int
 		msgBytes, _ := json.Marshal(msg)
 
 		// 3. Send to Recipient
-		if err := conn.WriteMessage(1, msgBytes); err != nil {
-			// If sending fails, maybe they just disconnected
-			s.wsManager.RemoveClient(recipientID)
-		}
+		conn.WriteMessage(1, msgBytes)
 	}
 
 	return msg, nil

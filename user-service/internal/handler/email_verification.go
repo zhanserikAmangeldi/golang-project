@@ -13,7 +13,14 @@ type EmailVerificationHandler struct {
 func NewEmailVerificationHandler(authService *service.AuthService) *EmailVerificationHandler {
 	return &EmailVerificationHandler{authService: authService}
 }
-
+// VerifyEmail godoc
+// @Summary Verify user email
+// @Tags auth
+// @Produce json
+// @Param token query string true "Verification token"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} map[string]interface{}
+// @Router /verify-email [get]
 func (h *EmailVerificationHandler) VerifyEmail(c *gin.Context) {
 	token := c.Query("token")
 	if token == "" {

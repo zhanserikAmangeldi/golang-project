@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -18,8 +19,26 @@ import (
 	"github.com/zhanserikAmangeldi/user-service/internal/repository"
 	"github.com/zhanserikAmangeldi/user-service/internal/service"
 	"github.com/zhanserikAmangeldi/user-service/pkg/jwt"
+
+    swaggerFiles "github.com/swaggo/files"
+    ginSwagger "github.com/swaggo/gin-swagger"
+    _ "github.com/zhanserikAmangeldi/user-service/cmd/api/docs"
+
+	"google.golang.org/grpc"
+	userpb  "github.com/zhanserikAmangeldi/proto/userpb"
+	grpcserver "github.com/zhanserikAmangeldi/user-service/internal/grpc"
 )
 
+// @title User Service API
+// @version 1.0
+// @description REST API for authentication, authorization and user profile management
+
+// @host localhost:8081
+// @BasePath /api/v1
+
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
 func main() {
 	cfg := config.LoadConfig()
 	ctx := context.Background()
@@ -79,8 +98,28 @@ func main() {
 	userHandler := handler.NewUserHandler(userRepo)
 	emailVerificationHandler := handler.NewEmailVerificationHandler(authService)
 
+	go func() {
+		grpcPort := cfg.GRPCPort
+
+		lis, err := net.Listen("tcp", ":"+grpcPort)
+		if err != nil {
+			log.Fatalf("gRPC listen failed: %v", err)
+		}
+
+		srv := grpc.NewServer()
+		userpb.RegisterUserServiceServer(srv, grpcserver.NewUserGrpcServer(userRepo))
+
+		log.Printf("User-Service gRPC started on port %s", grpcPort)
+		if err := srv.Serve(lis); err != nil {
+			log.Fatalf("gRPC server failed: %v", err)
+		}
+	}()
+
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.Default()
+
+	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+
 
 	router.Use(func(c *gin.Context) {
 		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")

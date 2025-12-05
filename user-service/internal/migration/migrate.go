@@ -22,10 +22,10 @@ func AutoMigrate(dbURL string) error {
 	}
 
 	m, err := migrate.NewWithDatabaseInstance(
-		"/app/internal/migration/migrations",
-		"postgres",
-		driver,
-	)
+        "file:///app/internal/migration/migrations",
+        "postgres",
+        driver,
+    )
 	if err != nil {
 		return fmt.Errorf("migrate init error: %w", err)
 	}

@@ -5,8 +5,8 @@ import (
 	"database/sql"
 
 	"github.com/jmoiron/sqlx"
-	"github.com/zhanserikAmangeldi/chat-service/internal/core/domain"
-	"github.com/zhanserikAmangeldi/chat-service/internal/core/ports"
+	"chat-service/internal/core/domain"
+	"chat-service/internal/core/ports"
 )
 
 type PostgresRepository struct {

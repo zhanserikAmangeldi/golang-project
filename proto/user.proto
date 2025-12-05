@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package userpb;
+
+option go_package = "github.com/zhanserikAmangeldi/proto/userpb";
+
+message GetUserRequest {
+  int64 id = 1;
+}
+
+message User {
+  int64  id           = 1;
+  string username     = 2;
+  string email        = 3;
+  string display_name = 4;
+  string avatar_url   = 5;
+  string status       = 6;
+}
+
+message UserResponse {
+  User user = 1;
+}
+
+service UserService {
+  rpc GetUserById(GetUserRequest) returns (UserResponse);
+}

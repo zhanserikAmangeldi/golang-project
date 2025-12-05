@@ -3,7 +3,7 @@ package ports
 import (
 	"context"
 
-	"github.com/zhanserikAmangeldi/chat-service/internal/core/domain"
+	"chat-service/internal/core/domain"
 )
 
 type ChatRepository interface {

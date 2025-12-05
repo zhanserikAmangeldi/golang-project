@@ -35,6 +35,18 @@ func getClientInfo(c *gin.Context) (*string, *string) {
 	return userAgentStr, ipPtr
 }
 
+// Register godoc
+// @Summary Register a new user
+// @Description Create new account and send verification email
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param request body dto.RegisterUserRequest true "User registration data"
+// @Success 201 {object} dto.AuthResponse
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 500 {object} dto.ErrorResponse
+// @Router /auth/register [post]
 func (h *AuthHandler) Register(c *gin.Context) {
 	var req dto.RegisterUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -64,7 +76,18 @@ func (h *AuthHandler) Register(c *gin.Context) {
 
 	c.JSON(http.StatusCreated, authResp)
 }
-
+// Login godoc
+// @Summary Login user
+// @Description Authenticate user and return access + refresh tokens
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param request body dto.LoginRequest true "Login credentials"
+// @Success 200 {object} dto.AuthResponse
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 500 {object} dto.ErrorResponse
+// @Router /auth/login [post]
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req dto.LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -94,7 +117,18 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 	c.JSON(http.StatusOK, authResp)
 }
-
+// RefreshToken godoc
+// @Summary Refresh JWT tokens
+// @Description Refresh token pair using refresh token
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param request body dto.RefreshTokenRequest true "Refresh token"
+// @Success 200 {object} dto.AuthResponse
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 500 {object} dto.ErrorResponse
+// @Router /auth/refresh [post]
 func (h *AuthHandler) RefreshToken(c *gin.Context) {
 	var req dto.RefreshTokenRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -117,7 +151,18 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 
 	c.JSON(http.StatusOK, authResp)
 }
-
+// Logout godoc
+// @Summary Logout from current session
+// @Tags auth
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param request body dto.TokensRequest true "Access + refresh tokens"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 500 {object} dto.ErrorResponse
+// @Router /auth/logout [post]
 func (h *AuthHandler) Logout(c *gin.Context) {
 	var req dto.TokensRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -141,7 +186,15 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 		"message": "Logged out successfully",
 	})
 }
-
+// LogoutAll godoc
+// @Summary Logout user from all devices
+// @Tags auth
+// @Security BearerAuth
+// @Produce json
+// @Success 200 {object} map[string]interface{}
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 500 {object} dto.ErrorResponse
+// @Router /auth/logout-all [post]
 func (h *AuthHandler) LogoutAll(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 	fmt.Println(userID)
@@ -165,7 +218,16 @@ func (h *AuthHandler) LogoutAll(c *gin.Context) {
 		"message": "Logged out from all devices successfully",
 	})
 }
-
+// GetActiveSessions godoc
+// @Summary List active sessions for current user
+// @Tags auth
+// @Security BearerAuth
+// @Produce json
+// @Param current_token query string false "Current session refresh token"
+// @Success 200 {object} dto.SessionListResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 500 {object} dto.ErrorResponse
+// @Router /auth/sessions [get]
 func (h *AuthHandler) GetActiveSessions(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 	if userID == 0 {
@@ -184,6 +246,10 @@ func (h *AuthHandler) GetActiveSessions(c *gin.Context) {
 		})
 		return
 	}
+	c.JSON(http.StatusOK, dto.SessionListResponse{
+       Sessions: sessions.Sessions,
+       Total:    sessions.Total,
+    })
 
-	c.JSON(http.StatusOK, sessions)
+	// c.JSON(http.StatusOK, sessions)
 }
