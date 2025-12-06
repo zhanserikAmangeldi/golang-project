@@ -37,7 +37,7 @@ func Load() *Config {
 		RedisHost:      getEnv("REDIS_HOST", "localhost"),
 		RedisPort:      getEnv("REDIS_PORT", "6379"),
 		RedisDB:        redisDB,
-		UserServiceURL: getEnv("USER_SERVICE_URL", "http://localhost:8081"),
+		UserServiceURL: getEnv("USER_SERVICE_URL", "http://user_service:8081"),
 		JWTSecret:      getEnv("JWT_SECRET", "your-super-secret-key"),
 	}
 }

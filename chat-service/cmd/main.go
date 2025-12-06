@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/redis/go-redis/v9"
@@ -92,6 +93,22 @@ func main() {
 			return
 		}
 
+		_, tokenString, err := middleware.GetToken(r, cfg.JWTSecret)
+		if err != nil {
+			http.Error(w, "Invalid token", http.StatusUnauthorized)
+			return
+		}
+
+		exists, err := RecipientExists(r.Context(), req.RecipientID, cfg.UserServiceURL, tokenString)
+		if err != nil {
+			http.Error(w, "Failed to validate recipient", http.StatusInternalServerError)
+			return
+		}
+		if !exists {
+			http.Error(w, "Recipient does not exist", http.StatusBadRequest)
+			return
+		}
+
 		// Use authenticated user as sender
 		msg, err := chatService.SendMessage(r.Context(), userID, req.RecipientID, req.Content)
 		if err != nil {
@@ -160,4 +177,22 @@ func NewRedisClient(cfg *config.Config) *redis.Client {
 		Addr: cfg.GetRedisAddr(),
 		DB:   0,
 	})
+}
+
+func RecipientExists(ctx context.Context, recipientID int64, userServiceURL string, token string) (bool, error) {
+	req, _ := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("%s/api/v1/users/%d", userServiceURL, recipientID), nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return false, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusOK {
+		return true, nil
+	} else if resp.StatusCode == http.StatusNotFound {
+		return false, nil
+	}
+	return false, fmt.Errorf("unexpected status code %d", resp.StatusCode)
 }
