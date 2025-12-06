@@ -2,6 +2,7 @@ package handler
 
 import (
 	"fmt"
+	"github.com/redis/go-redis/v9"
 	"log"
 	"net/http"
 	"strings"
@@ -21,14 +22,16 @@ var upgrader = ws.Upgrader{
 }
 
 type WSHandler struct {
-	manager   *websocket.ClientManager
-	jwtSecret string
+	manager     *websocket.ClientManager
+	jwtSecret   string
+	redisClient *redis.Client
 }
 
-func NewWSHandler(manager *websocket.ClientManager, jwtSecret string) *WSHandler {
+func NewWSHandler(manager *websocket.ClientManager, jwtSecret string, client *redis.Client) *WSHandler {
 	return &WSHandler{
-		manager:   manager,
-		jwtSecret: jwtSecret,
+		manager:     manager,
+		jwtSecret:   jwtSecret,
+		redisClient: client,
 	}
 }
 
@@ -37,7 +40,6 @@ func (h *WSHandler) HandleConnection(w http.ResponseWriter, r *http.Request) {
 	// Extract token from query parameter (for WebSocket) or header
 	tokenString := r.URL.Query().Get("token")
 	if tokenString == "" {
-		// Try Authorization header as fallback
 		authHeader := r.Header.Get("Authorization")
 		tokenString = strings.TrimPrefix(authHeader, "Bearer ")
 	}
@@ -57,6 +59,17 @@ func (h *WSHandler) HandleConnection(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil || !token.Valid {
 		http.Error(w, "Invalid token", http.StatusUnauthorized)
+		return
+	}
+
+	exists, err := h.redisClient.Exists(r.Context(), "revoked:"+tokenString).Result()
+	if err != nil {
+		http.Error(w, "Redis error", http.StatusInternalServerError)
+		return
+	}
+
+	if exists > 0 {
+		http.Error(w, "Token revoked", http.StatusUnauthorized)
 		return
 	}
 

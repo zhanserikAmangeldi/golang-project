@@ -3,6 +3,7 @@ package middleware
 import (
 	"context"
 	"fmt"
+	"github.com/redis/go-redis/v9"
 	"net/http"
 	"strconv"
 	"strings"
@@ -15,11 +16,12 @@ type contextKey string
 const UserIDKey contextKey = "user_id"
 
 // Simple AuthMiddleware - Only validates JWT signature, no Redis session check
-func AuthMiddleware(jwtSecret string) func(http.Handler) http.Handler {
+func AuthMiddleware(jwtSecret string, redisClient *redis.Client) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Extract token from Authorization header
 			authHeader := r.Header.Get("Authorization")
+			fmt.Println(authHeader)
 			if authHeader == "" {
 				http.Error(w, "missing authorization header", http.StatusUnauthorized)
 				return
@@ -31,7 +33,6 @@ func AuthMiddleware(jwtSecret string) func(http.Handler) http.Handler {
 				return
 			}
 
-			// Parse and validate JWT token
 			token, err := jwt.Parse(tokenString, func(t *jwt.Token) (interface{}, error) {
 				if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 					return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
@@ -44,14 +45,22 @@ func AuthMiddleware(jwtSecret string) func(http.Handler) http.Handler {
 				return
 			}
 
-			// Extract claims
+			exists, err := redisClient.Exists(r.Context(), "revoked:"+tokenString).Result()
+			if err != nil {
+				http.Error(w, "Redis error", http.StatusInternalServerError)
+				return
+			}
+			if exists > 0 {
+				http.Error(w, "Token revoked", http.StatusUnauthorized)
+				return
+			}
+
 			claims, ok := token.Claims.(jwt.MapClaims)
 			if !ok {
 				http.Error(w, "invalid token claims", http.StatusUnauthorized)
 				return
 			}
 
-			// Get user_id from claims
 			userIDFloat, ok := claims["user_id"].(float64)
 			if !ok {
 				http.Error(w, "invalid user_id in token", http.StatusUnauthorized)
@@ -59,10 +68,8 @@ func AuthMiddleware(jwtSecret string) func(http.Handler) http.Handler {
 			}
 			userID := int64(userIDFloat)
 
-			// Add user_id to request context
 			ctx := context.WithValue(r.Context(), UserIDKey, userID)
 
-			// Also set as header for backward compatibility
 			r.Header.Set("X-User-ID", strconv.FormatInt(userID, 10))
 
 			next.ServeHTTP(w, r.WithContext(ctx))

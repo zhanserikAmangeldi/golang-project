@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/redis/go-redis/v9"
 	"log"
 	"net/http"
 
@@ -40,13 +41,16 @@ func main() {
 	}
 	log.Println("Migrations applied successfully")
 
+	redisClient := NewRedisClient(cfg)
+	defer redisClient.Close()
+
 	// Initialize components
 	wsManager := websocket.NewClientManager()
 	repo := repository.NewPostgresRepository(db)
 	chatService := service.NewChatService(repo, wsManager)
 
 	// WebSocket handler with simple JWT authentication (no Redis)
-	wsHandler := handler.NewWSHandler(wsManager, cfg.JWTSecret)
+	wsHandler := handler.NewWSHandler(wsManager, cfg.JWTSecret, redisClient)
 	http.HandleFunc("/ws", wsHandler.HandleConnection)
 
 	// Health check endpoint
@@ -106,7 +110,6 @@ func main() {
 			return
 		}
 
-		// Get authenticated user ID from context
 		userID, ok := middleware.GetUserID(r)
 		if !ok {
 			http.Error(w, "User not authenticated", http.StatusUnauthorized)
@@ -123,7 +126,7 @@ func main() {
 		fmt.Sscanf(conversationIDStr, "%d", &conversationID)
 
 		// TODO: Verify user is participant in this conversation
-		_ = userID // Will use this for authorization check
+		_ = userID
 
 		messages, err := chatService.GetHistory(r.Context(), conversationID)
 		if err != nil {
@@ -135,23 +138,26 @@ func main() {
 		json.NewEncoder(w).Encode(messages)
 	})
 
-	// Apply simple authentication middleware (no Redis session check)
-	authMiddleware := middleware.AuthMiddleware(cfg.JWTSecret)
+	authMiddleware := middleware.AuthMiddleware(cfg.JWTSecret, redisClient)
 	mux.Handle("/api/v1/messages/send", authMiddleware(sendMessageHandler))
 	mux.Handle("/api/v1/messages/history", authMiddleware(getHistoryHandler))
 
 	http.Handle("/api/", mux)
 
-	// Start server
 	log.Printf("Chat service starting on port %s", cfg.HTTPPort)
 	log.Println("WebSocket endpoint: /ws?token=<JWT_TOKEN>")
 	log.Println("Send message: POST /api/v1/messages/send")
 	log.Println("Get history: GET /api/v1/messages/history?conversation_id=<ID>")
 	log.Println("")
-	log.Println("⚠️  TESTING MODE: Redis session validation disabled")
-	log.Println("⚠️  Only JWT signature is validated")
 
 	if err := http.ListenAndServe(fmt.Sprintf(":%s", cfg.HTTPPort), nil); err != nil {
 		log.Fatalln("Server failed:", err)
 	}
+}
+
+func NewRedisClient(cfg *config.Config) *redis.Client {
+	return redis.NewClient(&redis.Options{
+		Addr: cfg.GetRedisAddr(),
+		DB:   0,
+	})
 }
