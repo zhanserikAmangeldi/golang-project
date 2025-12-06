@@ -16,6 +16,7 @@ type ChatRepository interface {
 
 	// Participant methods
 	AddParticipant(ctx context.Context, part *domain.Participant) error
+	IsParticipant(ctx context.Context, user1, user2 int64) (bool, error)
 
 	// Message methods
 	SaveMessage(ctx context.Context, msg *domain.Message) error

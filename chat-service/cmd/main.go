@@ -143,7 +143,16 @@ func main() {
 		fmt.Sscanf(conversationIDStr, "%d", &conversationID)
 
 		// TODO: Verify user is participant in this conversation
-		_ = userID
+		ok, err = repo.IsParticipant(r.Context(), conversationID, userID)
+		if err != nil {
+			http.Error(w, "Failed to validate is participant conversation", http.StatusInternalServerError)
+			return
+		}
+
+		if !ok {
+			http.Error(w, "You do not have permission to view this conversation", http.StatusForbidden)
+			return
+		}
 
 		messages, err := chatService.GetHistory(r.Context(), conversationID)
 		if err != nil {
