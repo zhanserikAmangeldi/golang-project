@@ -14,4 +14,5 @@ type ChatRepository interface {
 	SaveMessage(ctx context.Context, msg *model.Message) error
 	GetMessages(ctx context.Context, conversationID int64, limit, offset int) ([]model.Message, error)
 	GetParticipants(ctx context.Context, conversationID int64) ([]int64, error)
+	IsParticipant(ctx context.Context, user1, user2 int64) (bool, error)
 }

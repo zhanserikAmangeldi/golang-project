@@ -73,3 +73,10 @@ func (r *PostgresRepository) GetParticipants(ctx context.Context, conversationID
 
 	return userIDs, err
 }
+
+func (r *PostgresRepository) IsParticipant(ctx context.Context, convID, userID int64) (bool, error) {
+	var exists bool
+	query := `SELECT EXISTS(SELECT 1 FROM participants WHERE conversation_id = $1 AND user_id = $2)`
+	err := r.db.QueryRowContext(ctx, query, convID, userID).Scan(&exists)
+	return exists, err
+}
