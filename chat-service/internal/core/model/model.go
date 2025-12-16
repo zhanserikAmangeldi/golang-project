@@ -1,4 +1,4 @@
-package domain
+package model
 
 import (
 	"time"
@@ -7,6 +7,7 @@ import (
 type Conversation struct {
 	ID        int64     `json:"id" db:"id"`
 	IsGroup   bool      `json:"is_group" db:"is_group"`
+	Name      string    `json:"name" db:"name"`
 	CreatedAt time.Time `json:"created_at" db:"created_at"`
 }
 

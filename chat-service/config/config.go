@@ -26,8 +26,8 @@ func Load() *Config {
 	redisDB, _ := strconv.Atoi(getEnv("REDIS_DB", "0"))
 
 	return &Config{
-		HTTPPort:       getEnv("HTTP_PORT", "8082"),
-		GRPCPort:       getEnv("GRPC_PORT", "9092"),
+		HTTPPort:       getEnv("CHAT_HTTP_PORT", "8082"),
+		GRPCPort:       getEnv("CHAT_GRPC_PORT", "9092"),
 		DBHost:         getEnv("CHAT_DB_HOST", "localhost"),
 		DBPort:         getEnv("CHAT_DB_PORT", "5432"),
 		DBUser:         getEnv("CHAT_DB_USER", "postgres"),
@@ -37,7 +37,7 @@ func Load() *Config {
 		RedisHost:      getEnv("REDIS_HOST", "localhost"),
 		RedisPort:      getEnv("REDIS_PORT", "6379"),
 		RedisDB:        redisDB,
-		UserServiceURL: getEnv("USER_SERVICE_URL", "http://localhost:8081"),
+		UserServiceURL: getEnv("USER_SERVICE_URL", "localhost:9091"),
 		JWTSecret:      getEnv("JWT_SECRET", "your-super-secret-key"),
 	}
 }

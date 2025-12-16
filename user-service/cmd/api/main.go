@@ -4,13 +4,16 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
+	"google.golang.org/grpc"
 
 	"github.com/zhanserikAmangeldi/user-service/internal/config"
+	userGrpc "github.com/zhanserikAmangeldi/user-service/internal/grpc"
 	"github.com/zhanserikAmangeldi/user-service/internal/handler"
 	"github.com/zhanserikAmangeldi/user-service/internal/mailer"
 	"github.com/zhanserikAmangeldi/user-service/internal/middleware"
@@ -18,6 +21,7 @@ import (
 	"github.com/zhanserikAmangeldi/user-service/internal/repository"
 	"github.com/zhanserikAmangeldi/user-service/internal/service"
 	"github.com/zhanserikAmangeldi/user-service/pkg/jwt"
+	pb "github.com/zhanserikAmangeldi/user-service/proto"
 )
 
 func main() {
@@ -77,6 +81,30 @@ func main() {
 	authHandler := handler.NewAuthHandler(authService)
 	userHandler := handler.NewUserHandler(userRepo)
 	emailVerificationHandler := handler.NewEmailVerificationHandler(authService)
+
+	go func() {
+		grpcPort := cfg.GRPCPort
+		if grpcPort == "" {
+			grpcPort = "9091"
+		}
+
+		log.Printf("Starting gRPC server on port %s", grpcPort)
+		lis, err := net.Listen("tcp", ":"+grpcPort)
+		if err != nil {
+			log.Fatalf("failed to listen for gRPC: %v", err)
+		}
+
+		grpcServer := grpc.NewServer()
+
+		grpcImplementation := userGrpc.NewUserGrpcServer(userRepo)
+
+		// Register the server
+		pb.RegisterUserServiceServer(grpcServer, grpcImplementation)
+
+		if err := grpcServer.Serve(lis); err != nil {
+			log.Fatalf("failed to serve gRPC: %v", err)
+		}
+	}()
 
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.Default()

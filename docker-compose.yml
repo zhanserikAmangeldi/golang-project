@@ -102,8 +102,8 @@ services:
     env_file:
       - .env
     ports:
-      - "${CHAT_HTTP_PORT}:${HTTP_PORT}"
-      - "${CHAT_GRPC_PORT}:${GRPC_PORT}"
+      - "${CHAT_HTTP_PORT}:${CHAT_HTTP_PORT}"
+      - "${CHAT_GRPC_PORT}:${CHAT_GRPC_PORT}"
     networks:
       - chat-network
 

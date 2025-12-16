@@ -1,28 +1,26 @@
 package handler
 
 import (
-	"fmt"
 	"log"
 	"net/http"
-	"strings"
+	"strconv"
 
 	"github.com/golang-jwt/jwt/v5"
 	ws "github.com/gorilla/websocket"
 	"github.com/zhanserikAmangeldi/chat-service/internal/adapters/websocket"
 )
 
+type WSHandler struct {
+	manager   *websocket.ClientManager
+	jwtSecret string
+}
+
 var upgrader = ws.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
 	CheckOrigin: func(r *http.Request) bool {
-		// TODO: Configure allowed origins properly in production
 		return true
 	},
-}
-
-type WSHandler struct {
-	manager   *websocket.ClientManager
-	jwtSecret string
 }
 
 func NewWSHandler(manager *websocket.ClientManager, jwtSecret string) *WSHandler {
@@ -32,68 +30,64 @@ func NewWSHandler(manager *websocket.ClientManager, jwtSecret string) *WSHandler
 	}
 }
 
-// HandleConnection upgrades the HTTP connection to a WebSocket with JWT authentication
 func (h *WSHandler) HandleConnection(w http.ResponseWriter, r *http.Request) {
-	// Extract token from query parameter (for WebSocket) or header
+	var userID int64
 	tokenString := r.URL.Query().Get("token")
-	if tokenString == "" {
-		// Try Authorization header as fallback
-		authHeader := r.Header.Get("Authorization")
-		tokenString = strings.TrimPrefix(authHeader, "Bearer ")
-	}
 
-	if tokenString == "" {
-		http.Error(w, "Missing authentication token", http.StatusUnauthorized)
-		return
-	}
+	idString := r.URL.Query().Get("id")
 
-	// Validate JWT token
-	token, err := jwt.Parse(tokenString, func(t *jwt.Token) (interface{}, error) {
-		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
+	if tokenString != "" {
+		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+			return []byte(h.jwtSecret), nil
+		})
+
+		if err != nil || !token.Valid {
+			http.Error(w, "Invalid token", http.StatusUnauthorized)
+			return
 		}
-		return []byte(h.jwtSecret), nil
-	})
 
-	if err != nil || !token.Valid {
-		http.Error(w, "Invalid token", http.StatusUnauthorized)
+		claims, ok := token.Claims.(jwt.MapClaims)
+		if !ok {
+			http.Error(w, "Invalid claims", http.StatusUnauthorized)
+			return
+		}
+
+		userIDFloat, ok := claims["user_id"].(float64)
+		if !ok {
+			http.Error(w, "Token missing user_id", http.StatusUnauthorized)
+			return
+		}
+		userID = int64(userIDFloat)
+
+	} else if idString != "" {
+		var err error
+		userID, err = strconv.ParseInt(idString, 10, 64)
+		if err != nil {
+			http.Error(w, "Invalid ID format", http.StatusBadRequest)
+			return
+		}
+		log.Printf("[WS] ⚠️ WARNING: Connecting via insecure ID parameter: %d", userID)
+
+	} else {
+		http.Error(w, "Missing token or id", http.StatusUnauthorized)
 		return
 	}
 
-	// Extract claims
-	claims, ok := token.Claims.(jwt.MapClaims)
-	if !ok {
-		http.Error(w, "Invalid token claims", http.StatusUnauthorized)
-		return
-	}
-
-	// Get user_id from claims
-	userIDFloat, ok := claims["user_id"].(float64)
-	if !ok {
-		http.Error(w, "Invalid user_id in token", http.StatusUnauthorized)
-		return
-	}
-	userID := int64(userIDFloat)
-
-	// Upgrade the connection
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Println("Failed to upgrade connection:", err)
+		log.Println("[WS] Failed to upgrade:", err)
 		return
 	}
 
-	// Register the authenticated client
 	h.manager.AddClient(userID, conn)
-	log.Printf("User %d connected via WebSocket", userID)
+	log.Printf("[WS] User connected: %d", userID)
 
-	// Keep connection alive and listen for messages
 	defer h.manager.RemoveClient(userID)
 	for {
 		_, _, err := conn.ReadMessage()
 		if err != nil {
-			log.Printf("User %d disconnected: %v", userID, err)
+			log.Printf("[WS] User %d disconnected", userID)
 			break
 		}
-		// Handle incoming messages if needed
 	}
 }

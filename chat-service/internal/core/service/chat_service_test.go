@@ -10,28 +10,28 @@ import (
 	"github.com/stretchr/testify/mock"
 
 	"github.com/zhanserikAmangeldi/chat-service/internal/adapters/websocket"
-	"github.com/zhanserikAmangeldi/chat-service/internal/core/domain"
+	"github.com/zhanserikAmangeldi/chat-service/internal/core/model"
 )
 
 type MockRepo struct{ mock.Mock }
 
-func (m *MockRepo) GetConversationByID(ctx context.Context, id int64) (*domain.Conversation, error) {
+func (m *MockRepo) GetConversationByID(ctx context.Context, id int64) (*model.Conversation, error) {
 	args := m.Called(ctx, id)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*domain.Conversation), args.Error(1)
+	return args.Get(0).(*model.Conversation), args.Error(1)
 }
 
-func (m *MockRepo) FindOneToOneConversation(ctx context.Context, s, r int64) (*domain.Conversation, error) {
+func (m *MockRepo) FindOneToOneConversation(ctx context.Context, s, r int64) (*model.Conversation, error) {
 	args := m.Called(ctx, s, r)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*domain.Conversation), args.Error(1)
+	return args.Get(0).(*model.Conversation), args.Error(1)
 }
 
-func (m *MockRepo) CreateConversation(ctx context.Context, c *domain.Conversation) error {
+func (m *MockRepo) CreateConversation(ctx context.Context, c *model.Conversation) error {
 	args := m.Called(ctx, c)
 	// Simulate DB assigning ID
 	if c.ID == 0 {
@@ -40,17 +40,17 @@ func (m *MockRepo) CreateConversation(ctx context.Context, c *domain.Conversatio
 	return args.Error(0)
 }
 
-func (m *MockRepo) AddParticipant(ctx context.Context, p *domain.Participant) error {
+func (m *MockRepo) AddParticipant(ctx context.Context, p *model.Participant) error {
 	return m.Called(ctx, p).Error(0)
 }
 
-func (m *MockRepo) SaveMessage(ctx context.Context, msg *domain.Message) error {
+func (m *MockRepo) SaveMessage(ctx context.Context, msg *model.Message) error {
 	return m.Called(ctx, msg).Error(0)
 }
 
-func (m *MockRepo) GetMessages(ctx context.Context, id int64, limit, offset int) ([]domain.Message, error) {
+func (m *MockRepo) GetMessages(ctx context.Context, id int64, limit, offset int) ([]model.Message, error) {
 	args := m.Called(ctx, id, limit, offset)
-	return args.Get(0).([]domain.Message), args.Error(1)
+	return args.Get(0).([]model.Message), args.Error(1)
 }
 
 func TestSendMessage_ExistingConversation(t *testing.T) {
@@ -64,7 +64,7 @@ func TestSendMessage_ExistingConversation(t *testing.T) {
 	recipient := int64(2)
 	content := "Hello!"
 
-	conv := &domain.Conversation{ID: 10}
+	conv := &model.Conversation{ID: 10}
 
 	// CORRECT: mock.Anything only for context, specific values for IDs
 	repo.On("FindOneToOneConversation", mock.Anything, sender, recipient).
@@ -95,13 +95,13 @@ func TestSendMessage_NoConversation_CreatesConversation(t *testing.T) {
 
 	// CORRECT: Use mock.Anything only for context
 	repo.On("FindOneToOneConversation", mock.Anything, sender, recipient).
-		Return((*domain.Conversation)(nil), nil)
+		Return((*model.Conversation)(nil), nil)
 
 	// CreateConversation: context + pointer
 	repo.On("CreateConversation", mock.Anything, mock.AnythingOfType("*domain.Conversation")).
 		Return(nil).
 		Run(func(args mock.Arguments) {
-			conv := args.Get(1).(*domain.Conversation) // now safe: arg1 is the conversation
+			conv := args.Get(1).(*model.Conversation) // now safe: arg1 is the conversation
 			conv.ID = 777
 			conv.CreatedAt = time.Now()
 		})
@@ -134,7 +134,7 @@ func TestSendMessage_SaveMessageError(t *testing.T) {
 	sender := int64(1)
 	recipient := int64(2)
 
-	conv := &domain.Conversation{ID: 10}
+	conv := &model.Conversation{ID: 10}
 
 	repo.On("FindOneToOneConversation", mock.Anything, sender, recipient).
 		Return(conv, nil)
