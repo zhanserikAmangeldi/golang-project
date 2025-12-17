@@ -18,12 +18,20 @@ func NewPostgresRepository(db *sqlx.DB) ports.ChatRepository {
 }
 
 func (r *PostgresRepository) CreateConversation(ctx context.Context, conv *model.Conversation) error {
-	query := `INSERT INTO conversations (is_group, created_at) VALUES ($1, $2) RETURNING id`
-	return r.db.QueryRowContext(ctx, query, conv.IsGroup, conv.CreatedAt).Scan(&conv.ID)
+	query := `
+		INSERT INTO conversations (name, is_group, created_at) 
+		VALUES ($1, $2, $3) 
+		RETURNING id`
+
+	return r.db.QueryRowContext(ctx, query, conv.Name, conv.IsGroup, conv.CreatedAt).Scan(&conv.ID)
 }
 
 func (r *PostgresRepository) AddParticipant(ctx context.Context, part *model.Participant) error {
-	query := `INSERT INTO participants (conversation_id, user_id, joined_at) VALUES ($1, $2, $3)`
+	query := `
+		INSERT INTO participants (conversation_id, user_id, joined_at) 
+		VALUES ($1, $2, $3)
+		ON CONFLICT (conversation_id, user_id) DO NOTHING`
+
 	_, err := r.db.ExecContext(ctx, query, part.ConversationID, part.UserID, part.JoinedAt)
 	return err
 }
@@ -57,6 +65,7 @@ func (r *PostgresRepository) FindOneToOneConversation(ctx context.Context, user1
 		WHERE c.is_group = false 
 		AND p1.user_id = $1 
 		AND p2.user_id = $2
+		LIMIT 1
 	`
 	err := r.db.GetContext(ctx, &conv, query, user1, user2)
 	if err == sql.ErrNoRows {
