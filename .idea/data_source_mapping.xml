@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="DataSourcePerFileMappings">
+    <file url="file://$PROJECT_DIR$/group-chat-service/db/db-schema.sql" value="433680e9-0ce8-4e56-a295-80484c9a83db" />
+  </component>
+</project>
