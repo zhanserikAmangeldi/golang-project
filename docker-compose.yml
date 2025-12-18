@@ -109,6 +109,12 @@ services:
     ports:
       - "${USER_HTTP_PORT}:${HTTP_PORT}"
       - "${USER_GRPC_PORT}:${GRPC_PORT}"
+    healthcheck:
+      test: [ "CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:${USER_HTTP_PORT}/health || exit 1" ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     networks:
       - chat-network
 
@@ -129,9 +135,40 @@ services:
     ports:
       - "${CHAT_HTTP_PORT}:${CHAT_HTTP_PORT}"
       - "${CHAT_GRPC_PORT}:${CHAT_GRPC_PORT}"
+    healthcheck:
+      test: [ "CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:${CHAT_HTTP_PORT}/health || exit 1" ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
     networks:
       - chat-network
 
+  api-gateway:
+    build: ./api-gateway
+    container_name: api_gateway
+    depends_on:
+      user_service:
+        condition: service_healthy
+      chat_service:
+        condition: service_healthy
+    environment:
+      - PORT=${GATEWAY_PORT}
+      - AUTH_SERVICE_URL=http://user_service:${USER_HTTP_PORT}
+      - CHAT_SERVICE_URL=http://chat_service:${CHAT_HTTP_PORT}
+      - CHAT_WS_URL=ws://chat_service:${CHAT_HTTP_PORT}
+      - JWT_SECRET=${JWT_SECRET}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
+    ports:
+      - "${GATEWAY_PORT}:${GATEWAY_PORT}"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:${GATEWAY_PORT}/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - chat-network
 volumes:
   user_postgres_data:
   chat_postgres_data:
