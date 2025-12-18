@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/zhanserikAmangeldi/user-service/internal/seed"
 	"log"
 	"net"
 	"net/http"
@@ -74,15 +75,28 @@ func main() {
 	userRepo := repository.NewUserRepository(dbPool)
 	sessionRepo := repository.NewSessionRepository(dbPool)
 	emailRepo := repository.NewEmailVerificationRepository(dbPool)
+	banRepo := repository.NewBanRepository(dbPool)
+	auditRepo := repository.NewAuditRepository(dbPool)
 
 	tokenManager := jwt.NewTokenManager(cfg.JWTSecret)
 	authService := service.NewAuthService(userRepo, sessionRepo, tokenManager, emailRepo, &smtp, redisClient)
 	minioService := service.NewMinioService(cfg)
+	adminService := service.NewAdminService(userRepo, banRepo, auditRepo)
 
 	minioHandler := handler.NewMinioHandler(minioService, userRepo)
 	authHandler := handler.NewAuthHandler(authService)
 	userHandler := handler.NewUserHandler(userRepo)
 	emailVerificationHandler := handler.NewEmailVerificationHandler(authService)
+	adminHandler := handler.NewAdminHandler(adminService)
+
+	if cfg.DefaultAdmin == "true" {
+		adminSeeder := seed.NewUserSeeder(dbPool)
+
+		err = adminSeeder.SeedAdmin(ctx)
+		if err != nil {
+			log.Printf("Unable to seed admin: %v\n", err)
+		}
+	}
 
 	go func() {
 		grpcPort := cfg.GRPCPort
@@ -100,7 +114,6 @@ func main() {
 
 		grpcImplementation := userGrpc.NewUserGrpcServer(userRepo)
 
-		// Register the server
 		pb.RegisterUserServiceServer(grpcServer, grpcImplementation)
 
 		if err := grpcServer.Serve(lis); err != nil {
@@ -148,6 +161,7 @@ func main() {
 
 	protected := v1.Group("")
 	protected.Use(middleware.AuthMiddleware(tokenManager, redisClient))
+	protected.Use(middleware.CheckBan(banRepo))
 	{
 		auth := protected.Group("/auth")
 		{
@@ -162,6 +176,30 @@ func main() {
 			users.GET("/me", userHandler.GetMe)
 			users.PUT("/me", userHandler.UpdateMe)
 			users.GET("/:id", userHandler.GetUserByID)
+		}
+
+		admin := protected.Group("/admin")
+		admin.Use(middleware.RequireAdmin(userRepo))
+		{
+			admin.GET("/users", adminHandler.GetAllUsers)
+			admin.DELETE("/users/:user_id", adminHandler.DeleteUser)
+			admin.PUT("/users/role", adminHandler.UpdateUserRole)
+
+			admin.POST("/bans", adminHandler.BanUser)
+			admin.DELETE("/bans/:user_id", adminHandler.UnbanUser)
+			admin.GET("/bans/:user_id/history", adminHandler.GetUserBanHistory)
+
+			admin.GET("/audit-logs", adminHandler.GetAuditLogs)
+			admin.GET("/audit-logs/user/:user_id", adminHandler.GetUserAuditLogs)
+
+			admin.GET("/stats", adminHandler.GetDashboardStats)
+		}
+
+		moderator := protected.Group("/moderator")
+		moderator.Use(middleware.RequireModerator(userRepo))
+		{
+			moderator.GET("/users", adminHandler.GetAllUsers)
+			moderator.GET("/bans/:user_id/history", adminHandler.GetUserBanHistory)
 		}
 	}
 

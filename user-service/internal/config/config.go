@@ -16,6 +16,7 @@ type Config struct {
 	MinioApiPort string
 	MinioUser    string
 	MinioPass    string
+	DefaultAdmin string
 	JWTSecret    string
 }
 
@@ -34,6 +35,7 @@ func LoadConfig() *Config {
 		MinioApiPort: getEnv("MINIO_PORT", "9000"),
 		MinioUser:    getEnv("MINIO_USER", "admin"),
 		MinioPass:    getEnv("MINIO_PASSWORD", "admin123"),
+		DefaultAdmin: getEnv("DEFAULT_ADMIN", "true"),
 		JWTSecret:    getEnv("JWT_SECRET", "your-super-secret-key"),
 	}
 }
