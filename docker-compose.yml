@@ -52,6 +52,27 @@ services:
     networks:
       - chat-network
 
+  minio:
+    image: minio/minio
+    container_name: minio
+    ports:
+      - "${MINIO_API_PORT}:9000"
+      - "${MINIO_UI_PORT}:9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_PASSWORD}
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+      start_period: 5s
+    volumes:
+      - minio_data:/data
+    networks:
+      - chat-network
+
 #  rabbitmq:
 #    image: rabbitmq:3-management-alpine
 #    container_name: chat_rabbitmq
@@ -79,6 +100,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      minio:
+        condition: service_healthy
 #      rabbitmq:
 #        condition: service_healthy
     env_file:
@@ -97,6 +120,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      minio:
+        condition: service_healthy
     #      rabbitmq:
     #        condition: service_healthy
     env_file:
@@ -111,6 +136,7 @@ volumes:
   user_postgres_data:
   chat_postgres_data:
   redis_data:
+  minio_data:
 #  rabbitmq_data:
 
 networks:

@@ -77,7 +77,9 @@ func main() {
 
 	tokenManager := jwt.NewTokenManager(cfg.JWTSecret)
 	authService := service.NewAuthService(userRepo, sessionRepo, tokenManager, emailRepo, &smtp, redisClient)
+	minioService := service.NewMinioService(cfg)
 
+	minioHandler := handler.NewMinioHandler(minioService, userRepo)
 	authHandler := handler.NewAuthHandler(authService)
 	userHandler := handler.NewUserHandler(userRepo)
 	emailVerificationHandler := handler.NewEmailVerificationHandler(authService)
@@ -155,6 +157,8 @@ func main() {
 
 		users := protected.Group("/users")
 		{
+			users.POST("/upload-avatar", minioHandler.UploadAvatar)
+			users.GET("/get-avatar", minioHandler.GetAvatar)
 			users.GET("/me", userHandler.GetMe)
 			users.PUT("/me", userHandler.UpdateMe)
 			users.GET("/:id", userHandler.GetUserByID)

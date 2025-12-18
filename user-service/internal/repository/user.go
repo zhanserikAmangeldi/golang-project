@@ -145,6 +145,25 @@ func (r *UserRepository) GetByUsername(ctx context.Context, username string) (*m
 	return user, nil
 }
 
+func (r *UserRepository) GetAvatarURL(ctx context.Context, userID int64) (string, error) {
+	query := `
+		SELECT avatar_url
+		FROM users
+		WHERE id = $1 AND deleted_at IS NULL
+	`
+
+	var avatarURL string
+	err := r.db.QueryRow(ctx, query, userID).Scan(&avatarURL)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", ErrUserNotFound
+		}
+		return "", err
+	}
+
+	return avatarURL, nil
+}
+
 func (r *UserRepository) Update(ctx context.Context, user *models.User) error {
 	query := `
 		UPDATE users
@@ -159,6 +178,33 @@ func (r *UserRepository) Update(ctx context.Context, user *models.User) error {
 		user.AvatarURL,
 		user.Bio,
 		user.Status,
+	).Scan(&user.UpdatedAt)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrUserNotFound
+		}
+		return err
+	}
+
+	return nil
+}
+
+func (r *UserRepository) UpdateAvatar(ctx context.Context, userID int64, objectName string) error {
+	query := `
+		UPDATE users
+		SET avatar_url = $2, updated_at = CURRENT_TIMESTAMP
+		WHERE id = $1 AND deleted_at IS NULL
+		RETURNING updated_at
+	`
+	user, err := r.GetByID(ctx, userID)
+	if err != nil {
+		return err
+	}
+
+	err = r.db.QueryRow(ctx, query,
+		userID,
+		objectName,
 	).Scan(&user.UpdatedAt)
 
 	if err != nil {
