@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"log"
 	"time"
 
 	"github.com/zhanserikAmangeldi/chat-service/internal/adapters/grpc"
@@ -13,11 +14,11 @@ import (
 
 type ChatService struct {
 	repo       ports.ChatRepository
-	redis      *redisAdapter.RedisClient
-	userClient *grpc.UserClient
+	redis      redisAdapter.IRedisClient
+	userClient grpc.IUserClient
 }
 
-func NewChatService(repo ports.ChatRepository, redis *redisAdapter.RedisClient, userClient *grpc.UserClient) *ChatService {
+func NewChatService(repo ports.ChatRepository, redis redisAdapter.IRedisClient, userClient grpc.IUserClient) *ChatService {
 	return &ChatService{
 		repo:       repo,
 		redis:      redis,
@@ -25,19 +26,17 @@ func NewChatService(repo ports.ChatRepository, redis *redisAdapter.RedisClient, 
 	}
 }
 
-// CreateGroup validates users via gRPC and creates a named conversation
 func (s *ChatService) CreateGroup(ctx context.Context, name string, creatorID int64, memberIDs []int64) (*model.Conversation, error) {
-	// 1. Validate all users exist via gRPC
 	allMembers := append(memberIDs, creatorID)
+	log.Printf("name: %v, creatorID: %v, allMembers: %v", name, creatorID, allMembers)
 	exists, err := s.userClient.ValidateUsersExist(ctx, allMembers)
 	if err != nil {
-		return nil, err // gRPC error
+		return nil, err
 	}
 	if !exists {
 		return nil, errors.New("one or more users do not exist")
 	}
 
-	// 2. Create Conversation
 	conv := &model.Conversation{
 		IsGroup:   true,
 		Name:      name,
@@ -48,7 +47,6 @@ func (s *ChatService) CreateGroup(ctx context.Context, name string, creatorID in
 		return nil, err
 	}
 
-	// 3. Add Participants
 	for _, uid := range allMembers {
 		p := &model.Participant{
 			ConversationID: conv.ID,
@@ -61,15 +59,10 @@ func (s *ChatService) CreateGroup(ctx context.Context, name string, creatorID in
 	return conv, nil
 }
 
-// SendMessage handles logic for both 1:1 and Group chats.
-//
-// Scenario A (New 1:1): Pass conversationID=0. We look up or create the chat.
-// Scenario B (Existing): Pass conversationID=N. We send directly to that room.
-func (s *ChatService) SendMessage(ctx context.Context, senderID, recipientID int64, content string, conversationID int64) (*model.Message, error) {
+func (s *ChatService) SendMessage(ctx context.Context, senderID, recipientID int64, content string, conversationID int64, messageType string, fileURL, fileName, mimeType *string, fileSize *int64) (*model.Message, error) {
 	var conv *model.Conversation
 	var err error
 
-	// CASE 1: Existing Conversation ID provided (Group or existing 1:1)
 	if conversationID > 0 {
 		conv, err = s.repo.GetConversationByID(ctx, conversationID)
 		if err != nil {
@@ -79,17 +72,12 @@ func (s *ChatService) SendMessage(ctx context.Context, senderID, recipientID int
 			return nil, errors.New("conversation not found")
 		}
 	} else {
-		// CASE 2: New 1:1 Chat (No Conversation ID yet)
-
-		// A. Check if 1:1 already exists in DB
 		conv, err = s.repo.FindOneToOneConversation(ctx, senderID, recipientID)
 		if err != nil {
 			return nil, err
 		}
 
-		// B. If not found, create it
 		if conv == nil {
-			// Validate recipient exists via gRPC
 			exists, _ := s.userClient.ValidateUserExists(ctx, recipientID)
 			if !exists {
 				return nil, errors.New("recipient user does not exist")
@@ -100,41 +88,41 @@ func (s *ChatService) SendMessage(ctx context.Context, senderID, recipientID int
 				CreatedAt: time.Now(),
 			}
 
-			// Repository generates and sets the ID
 			if err := s.repo.CreateConversation(ctx, newConv); err != nil {
 				return nil, err
 			}
 			conv = newConv
 
-			// Add both participants
 			s.repo.AddParticipant(ctx, &model.Participant{ConversationID: conv.ID, UserID: senderID, JoinedAt: time.Now()})
 			s.repo.AddParticipant(ctx, &model.Participant{ConversationID: conv.ID, UserID: recipientID, JoinedAt: time.Now()})
 		}
 	}
 
-	// 3. Create the Message object
+	if messageType == "" {
+		messageType = "text"
+	}
+
 	msg := &model.Message{
 		ConversationID: conv.ID,
 		SenderID:       senderID,
 		Content:        content,
+		MessageType:    messageType,
+		FileURL:        fileURL,
+		FileName:       fileName,
+		FileSize:       fileSize,
+		MimeType:       mimeType,
 		CreatedAt:      time.Now(),
 	}
 
-	// 4. Save to DB
 	if err := s.repo.SaveMessage(ctx, msg); err != nil {
 		return nil, err
 	}
 
-	// 5. Broadcast via Redis
-
-	// Fetch who is in this room
 	participantIDs, err := s.repo.GetParticipants(ctx, conv.ID)
 	if err != nil {
-		// Log error, but don't fail because message is safely in DB
 		return msg, nil
 	}
 
-	// Filter out the sender (optional)
 	recipients := make([]int64, 0)
 	for _, pid := range participantIDs {
 		if pid != senderID {
@@ -142,16 +130,159 @@ func (s *ChatService) SendMessage(ctx context.Context, senderID, recipientID int
 		}
 	}
 
-	// Publish to Redis if there are recipients
 	if len(recipients) > 0 {
-		// This pushes the message to the Redis Channel.
-		// The background listener in main.go will pick this up and send to WebSockets.
 		_ = s.redis.Publish(ctx, *msg, recipients)
 	}
 
 	return msg, nil
 }
 
-func (s *ChatService) GetHistory(ctx context.Context, conversationID int64) ([]model.Message, error) {
-	return s.repo.GetMessages(ctx, conversationID, 50, 0)
+func (s *ChatService) GetHistory(ctx context.Context, conversationID int64, limit, offset int) ([]model.Message, error) {
+	if limit == 0 {
+		limit = 50
+	}
+	return s.repo.GetMessages(ctx, conversationID, limit, offset)
+}
+
+func (s *ChatService) GetUserConversations(ctx context.Context, userID int64, limit, offset int) ([]model.ConversationWithLastMessage, error) {
+	if limit == 0 {
+		limit = 20
+	}
+	return s.repo.GetUserConversations(ctx, userID, limit, offset)
+}
+
+func (s *ChatService) MarkMessageAsRead(ctx context.Context, messageID, userID int64) error {
+	msg, err := s.repo.GetMessageByID(ctx, messageID)
+	if err != nil {
+		return err
+	}
+
+	if msg.SenderID == userID {
+		return nil
+	}
+
+	isParticipant, err := s.repo.IsParticipant(ctx, msg.ConversationID, userID)
+	if err != nil || !isParticipant {
+		return errors.New("user is not a participant of this conversation")
+	}
+
+	err = s.repo.MarkMessageAsRead(ctx, messageID, userID)
+	if err != nil {
+		return err
+	}
+
+	readReceipt := model.MessageRead{
+		MessageID: messageID,
+		UserID:    userID,
+		ReadAt:    time.Now(),
+	}
+
+	_, _ = s.repo.GetParticipants(ctx, msg.ConversationID)
+
+	recipients := []int64{msg.SenderID}
+
+	_ = s.redis.PublishReadReceipt(ctx, readReceipt, recipients)
+
+	return nil
+}
+
+func (s *ChatService) AddReaction(ctx context.Context, messageID, userID int64, reaction string) error {
+	msg, err := s.repo.GetMessageByID(ctx, messageID)
+	if err != nil {
+		return err
+	}
+
+	isParticipant, err := s.repo.IsParticipant(ctx, msg.ConversationID, userID)
+	if err != nil || !isParticipant {
+		return errors.New("user is not a participant of this conversation")
+	}
+
+	err = s.repo.AddReaction(ctx, messageID, userID, reaction)
+	if err != nil {
+		return err
+	}
+
+	reactionEvent := model.Reaction{
+		MessageID: messageID,
+		UserID:    userID,
+		Reaction:  reaction,
+		CreatedAt: time.Now(),
+	}
+
+	participants, _ := s.repo.GetParticipants(ctx, msg.ConversationID)
+	_ = s.redis.PublishReaction(ctx, reactionEvent, participants)
+
+	return nil
+}
+
+func (s *ChatService) RemoveReaction(ctx context.Context, messageID, userID int64, reaction string) error {
+	msg, err := s.repo.GetMessageByID(ctx, messageID)
+	if err != nil {
+		return err
+	}
+
+	err = s.repo.RemoveReaction(ctx, messageID, userID, reaction)
+	if err != nil {
+		return err
+	}
+
+	reactionEvent := model.Reaction{
+		MessageID: messageID,
+		UserID:    userID,
+		Reaction:  reaction,
+	}
+
+	participants, _ := s.repo.GetParticipants(ctx, msg.ConversationID)
+	_ = s.redis.PublishReactionRemoval(ctx, reactionEvent, participants)
+
+	return nil
+}
+
+func (s *ChatService) EditMessage(ctx context.Context, messageID, userID int64, newContent string) error {
+	msg, err := s.repo.GetMessageByID(ctx, messageID)
+	if err != nil {
+		return err
+	}
+
+	if msg.SenderID != userID {
+		return errors.New("only message sender can edit the message")
+	}
+
+	if msg.DeletedAt != nil {
+		return errors.New("cannot edit deleted message")
+	}
+
+	err = s.repo.EditMessage(ctx, messageID, newContent)
+	if err != nil {
+		return err
+	}
+
+	updatedMsg, _ := s.repo.GetMessageByID(ctx, messageID)
+	if updatedMsg != nil {
+		participants, _ := s.repo.GetParticipants(ctx, msg.ConversationID)
+		_ = s.redis.PublishMessageEdit(ctx, *updatedMsg, participants)
+	}
+
+	return nil
+}
+
+func (s *ChatService) DeleteMessage(ctx context.Context, messageID, userID int64) error {
+	msg, err := s.repo.GetMessageByID(ctx, messageID)
+	if err != nil {
+		return err
+	}
+
+	if msg.SenderID != userID {
+		return errors.New("only message sender can delete the message")
+	}
+
+	err = s.repo.DeleteMessage(ctx, messageID)
+	if err != nil {
+		return err
+	}
+
+	participants, _ := s.repo.GetParticipants(ctx, msg.ConversationID)
+	_ = s.redis.PublishMessageDeletion(ctx, messageID, participants)
+
+	return nil
 }

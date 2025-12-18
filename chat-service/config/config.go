@@ -19,6 +19,11 @@ type Config struct {
 	RedisPort      string
 	RedisDB        int
 	UserServiceURL string
+	MinioHost      string
+	MinioApiPort   string
+	MinioAccessKey string
+	MinioSecretKey string
+	MinioUseSSL    bool
 	JWTSecret      string
 }
 
@@ -38,6 +43,10 @@ func Load() *Config {
 		RedisPort:      getEnv("REDIS_PORT", "6379"),
 		RedisDB:        redisDB,
 		UserServiceURL: getEnv("USER_SERVICE_URL", "localhost:9091"),
+		MinioHost:      getEnv("MINIO_HOST", "localhost"),
+		MinioApiPort:   getEnv("MINIO_PORT", "9000"),
+		MinioAccessKey: getEnv("MINIO_USER", "admin"),
+		MinioSecretKey: getEnv("MINIO_PASSWORD", "admin123"),
 		JWTSecret:      getEnv("JWT_SECRET", "your-super-secret-key"),
 	}
 }

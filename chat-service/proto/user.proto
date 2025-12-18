@@ -2,18 +2,13 @@ syntax = "proto3";
 
 package user;
 
-// This option tells the compiler where to put the generated Go files
 option go_package = "./proto";
 
 service UserService {
-  // Used to check if a single user exists (for 1:1 chats)
   rpc GetUser (GetUserRequest) returns (GetUserResponse);
-
-  // Used to check if multiple users exist (for Group chats)
   rpc CheckUsersExist (CheckUsersExistRequest) returns (CheckUsersExistResponse);
 }
 
-// --- Messages for GetUser ---
 message GetUserRequest {
   int64 id = 1;
 }
@@ -25,7 +20,6 @@ message GetUserResponse {
   string avatar_url = 4;
 }
 
-// --- Messages for CheckUsersExist ---
 message CheckUsersExistRequest {
   repeated int64 user_ids = 1;
 }

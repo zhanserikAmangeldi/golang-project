@@ -3,6 +3,13 @@ CREATE TABLE messages (
                           conversation_id BIGINT REFERENCES conversations(id) ON DELETE CASCADE,
                           sender_id BIGINT NOT NULL,
                           content TEXT NOT NULL,
+                          file_url VARCHAR(500),
+                          file_name VARCHAR(255),
+                          file_size BIGINT,
+                          mime_type VARCHAR(100),
+                          message_type VARCHAR(20) DEFAULT 'text' CHECK (message_type IN ('text', 'image', 'file', 'audio', 'video')),
+                          deleted_at TIMESTAMP WITH TIME ZONE,
+                          edited_at TIMESTAMP WITH TIME ZONE,
                           created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 

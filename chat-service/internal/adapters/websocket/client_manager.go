@@ -6,12 +6,9 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-// ClientManager keeps track of all the active websocket connections
 type ClientManager struct {
-	// A map of UserID -> WebSocket Connection
 	clients map[int64]*websocket.Conn
-	// Mutex to protect the map from concurrent writes
-	lock sync.RWMutex
+	lock    sync.RWMutex
 }
 
 func NewClientManager() *ClientManager {
@@ -20,14 +17,12 @@ func NewClientManager() *ClientManager {
 	}
 }
 
-// AddClient registers a user connection
 func (manager *ClientManager) AddClient(userID int64, conn *websocket.Conn) {
 	manager.lock.Lock()
 	defer manager.lock.Unlock()
 	manager.clients[userID] = conn
 }
 
-// RemoveClient unregisters a user connection
 func (manager *ClientManager) RemoveClient(userID int64) {
 	manager.lock.Lock()
 	defer manager.lock.Unlock()
@@ -37,7 +32,6 @@ func (manager *ClientManager) RemoveClient(userID int64) {
 	}
 }
 
-// GetClient returns the connection for a specific user
 func (manager *ClientManager) GetClient(userID int64) (*websocket.Conn, bool) {
 	manager.lock.RLock()
 	defer manager.lock.RUnlock()
