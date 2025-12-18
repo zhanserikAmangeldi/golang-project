@@ -8,6 +8,16 @@ import (
 	"time"
 )
 
+type ISessionRepository interface {
+	Create(ctx context.Context, session *Session) error
+	GetByRefreshToken(ctx context.Context, refreshToken string) (*Session, error)
+	Revoke(ctx context.Context, refreshToken string) error
+	RevokeAllByUserID(ctx context.Context, userID int64) error
+	GetAllByUserID(ctx context.Context, userID int64) ([]*Session, error)
+	DeleteExpired(ctx context.Context) (int64, error)
+	UpdateAccessToken(ctx context.Context, refreshToken, newAccessToken string) error
+}
+
 var ErrSessionNotFound = errors.New("session not found")
 var ErrSessionExpired = errors.New("session expired")
 var ErrSessionRevoked = errors.New("session revoked")

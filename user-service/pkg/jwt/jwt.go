@@ -7,6 +7,12 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
+type ITokenManager interface {
+	GenerateAccessToken(userId int64, username, email string) (string, time.Time, error)
+	GenerateRefreshToken(userID int64, username, email string) (string, time.Time, error)
+	ValidateToken(tokenString string) (*Claims, error)
+}
+
 var (
 	ErrInvalidToken = errors.New("invalid token")
 	ErrExpiredToken = errors.New("expired token")

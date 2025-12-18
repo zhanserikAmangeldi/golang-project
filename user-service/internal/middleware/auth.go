@@ -1,7 +1,7 @@
 package middleware
 
 import (
-	"github.com/redis/go-redis/v9"
+	"github.com/zhanserikAmangeldi/user-service/internal/repository"
 	"github.com/zhanserikAmangeldi/user-service/pkg/jwt"
 	"net/http"
 	"strings"
@@ -16,7 +16,7 @@ const (
 	emailKey            = "email"
 )
 
-func AuthMiddleware(tokenManager *jwt.TokenManager, redisClient *redis.Client) gin.HandlerFunc {
+func AuthMiddleware(tokenManager *jwt.TokenManager, redisClient repository.IRedisClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader(authorizationHeader)
 		if authHeader == "" {

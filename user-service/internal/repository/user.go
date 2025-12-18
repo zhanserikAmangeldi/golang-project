@@ -9,6 +9,18 @@ import (
 	"time"
 )
 
+type IUserRepository interface {
+	Create(ctx context.Context, user *models.User) error
+	GetByID(ctx context.Context, id int64) (*models.User, error)
+	GetByEmail(ctx context.Context, email string) (*models.User, error)
+	GetByUsername(ctx context.Context, username string) (*models.User, error)
+	Update(ctx context.Context, user *models.User) error
+	UpdateLastSeen(ctx context.Context, userID int64) error
+	GetAvatarURL(ctx context.Context, userID int64) (string, error)
+	UpdateAvatar(ctx context.Context, userID int64, objectName string) error
+	MarkVerified(ctx context.Context, userID int64) error
+}
+
 var ErrUserNotFound = errors.New("user not found")
 var ErrUserAlreadyExists = errors.New("user already exists")
 

@@ -48,13 +48,13 @@ func main() {
 	}
 	log.Println("Migrations applied successfully")
 
-	redisClient := redis.NewClient(&redis.Options{
+	redisClient := repository.NewRedisClient(redis.NewClient(&redis.Options{
 		Addr: fmt.Sprintf("%s:%s", cfg.RedisHost, cfg.RedisPort),
 		DB:   0,
-	})
+	}))
 	defer redisClient.Close()
 
-	if err := redisClient.Ping(ctx).Err(); err != nil {
+	if err := redisClient.Ping(ctx); err != nil {
 		log.Fatalf("Unable to connect to Redis: %v", err)
 	}
 	log.Println("Connected to Redis")

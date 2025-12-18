@@ -8,6 +8,12 @@ import (
 	"time"
 )
 
+type IEmailVerificationRepository interface {
+	Create(ctx context.Context, ev *models.EmailVerification) error
+	GetByToken(ctx context.Context, token string) (*models.EmailVerification, error)
+	MarkVerified(ctx context.Context, id int64) error
+}
+
 var (
 	ErrInvalidOrExpiredToken = errors.New("invalid or expired verification token")
 )

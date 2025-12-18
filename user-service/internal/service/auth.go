@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/redis/go-redis/v9"
 	"github.com/zhanserikAmangeldi/user-service/internal/dto"
 	"github.com/zhanserikAmangeldi/user-service/internal/models"
 	"github.com/zhanserikAmangeldi/user-service/internal/repository"
@@ -23,12 +22,12 @@ var (
 )
 
 type AuthService struct {
-	userRepo     *repository.UserRepository
-	sessionRepo  *repository.SessionRepository
-	tokenManager *jwt.TokenManager
-	emailRepo    *repository.EmailVerificationRepository
+	userRepo     repository.IUserRepository
+	sessionRepo  repository.ISessionRepository
+	tokenManager jwt.ITokenManager
+	emailRepo    repository.IEmailVerificationRepository
 	emailSender  EmailSender
-	redisClient  *redis.Client
+	redisClient  repository.IRedisClient
 }
 
 type EmailSender interface {
@@ -36,12 +35,12 @@ type EmailSender interface {
 }
 
 func NewAuthService(
-	userRepo *repository.UserRepository,
-	sessionRepo *repository.SessionRepository,
-	tokenManager *jwt.TokenManager,
-	emailRepo *repository.EmailVerificationRepository,
+	userRepo repository.IUserRepository,
+	sessionRepo repository.ISessionRepository,
+	tokenManager jwt.ITokenManager,
+	emailRepo repository.IEmailVerificationRepository,
 	emailSender EmailSender,
-	redisClient *redis.Client,
+	redisClient repository.IRedisClient,
 ) *AuthService {
 	return &AuthService{
 		userRepo:     userRepo,
@@ -245,8 +244,8 @@ func (s *AuthService) Logout(ctx context.Context, refreshToken, accessToken stri
 		ttl := time.Until(claims.ExpiresAt.Time)
 		if ttl > 0 {
 			key := fmt.Sprintf("revoked:%s", accessToken)
-			_ = s.redisClient.Set(ctx, key, "revoked", ttl).Err()
-			log.Printf("[INFO] Tokens blacklisted for userID=%s (accessToken=%s..., refreshToken=%s...)",
+			_ = s.redisClient.Set(ctx, key, "revoked", ttl)
+			log.Printf("[INFO] Tokens blacklisted for userID=%v (accessToken=%s..., refreshToken=%s...)",
 				claims.UserId, accessToken[:10], refreshToken[:10])
 		}
 	} else {
@@ -274,7 +273,7 @@ func (s *AuthService) LogoutAll(ctx context.Context, userID int64) error {
 			ttl := time.Until(claims.ExpiresAt.Time)
 			if ttl > 0 {
 				key := fmt.Sprintf("revoked:%s", accessToken)
-				_ = s.redisClient.Set(ctx, key, "revoked", ttl).Err()
+				_ = s.redisClient.Set(ctx, key, "revoked", ttl)
 			}
 		}
 	}
