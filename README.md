@@ -6,6 +6,8 @@ This tutorial will guide you through the system design, the technology stack, an
 ### System Architecture
 The project follows a decoupled microservices approach. Instead of a single "monolith," the responsibilities are split between specialized services.
 
+<img width="361" height="551" alt="Диаграмма без названия drawio (1)" src="https://github.com/user-attachments/assets/606d04bf-9f56-4880-a09d-6a696ffa2940" />
+
 1. API Gateway
 
 Role: Acts as a reverse proxy.
