@@ -18,6 +18,16 @@ func NewUserHandler(userRepo *repository.UserRepository) *UserHandler {
 	return &UserHandler{userRepo: userRepo}
 }
 
+// GetMe godoc
+// @Summary Профиль текущего пользователя
+// @Description Возвращает детальную информацию об авторизованном пользователе
+// @Tags users
+// @Security ApiKeyAuth
+// @Produce json
+// @Success 200 {object} models.User
+// @Failure 401 {object} dto.ErrorResponse "Не авторизован"
+// @Failure 404 {object} dto.ErrorResponse "Пользователь не найден"
+// @Router /api/v1/users/me [get]
 func (h *UserHandler) GetMe(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 	fmt.Println(userID)
@@ -46,6 +56,18 @@ func (h *UserHandler) GetMe(c *gin.Context) {
 	c.JSON(http.StatusOK, user)
 }
 
+// UpdateMe godoc
+// @Summary Обновить профиль
+// @Description Обновляет данные (отображаемое имя, био, статус) текущего пользователя
+// @Tags users
+// @Security ApiKeyAuth
+// @Accept json
+// @Produce json
+// @Param request body dto.UpdateUserRequest true "Новые данные профиля"
+// @Success 200 {object} models.User
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Router /api/v1/users/me [put]
 func (h *UserHandler) UpdateMe(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 	if userID == 0 {
@@ -96,6 +118,17 @@ func (h *UserHandler) UpdateMe(c *gin.Context) {
 	c.JSON(http.StatusOK, user)
 }
 
+// GetUserByID godoc
+// @Summary Получить пользователя по ID
+// @Description Возвращает публичную информацию о любом пользователе по его ID
+// @Tags users
+// @Security ApiKeyAuth
+// @Produce json
+// @Param id path int true "User ID"
+// @Success 200 {object} models.User
+// @Failure 400 {object} dto.ErrorResponse "Некорректный ID"
+// @Failure 404 {object} dto.ErrorResponse "Пользователь не найден"
+// @Router /api/v1/users/{id} [get]
 func (h *UserHandler) GetUserByID(c *gin.Context) {
 	var uriParam struct {
 		ID int64 `uri:"id" binding:"required,min=1"`

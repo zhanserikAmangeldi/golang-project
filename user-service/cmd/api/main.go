@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/zhanserikAmangeldi/user-service/internal/seed"
 	"log"
 	"net"
 	"net/http"
@@ -20,10 +19,34 @@ import (
 	"github.com/zhanserikAmangeldi/user-service/internal/middleware"
 	"github.com/zhanserikAmangeldi/user-service/internal/migration"
 	"github.com/zhanserikAmangeldi/user-service/internal/repository"
+	"github.com/zhanserikAmangeldi/user-service/internal/seed"
 	"github.com/zhanserikAmangeldi/user-service/internal/service"
 	"github.com/zhanserikAmangeldi/user-service/pkg/jwt"
 	pb "github.com/zhanserikAmangeldi/user-service/proto"
+
+	// Swagger imports
+	_ "github.com/zhanserikAmangeldi/user-service/docs"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 )
+
+// @title User Service API
+// @version 1.0
+// @description API Server for User Management and Authentication
+// @termsOfService http://swagger.io/terms/
+
+// @contact.name API Support
+// @contact.url http://www.swagger.io/support
+// @contact.email support@swagger.io
+
+// @license.name Apache 2.0
+// @license.url http://www.apache.org/licenses/LICENSE-2.0.html
+
+// @host localhost:8080
+// @BasePath /
+// @securityDefinitions.apikey ApiKeyAuth
+// @in header
+// @name Authorization
 
 func main() {
 	cfg := config.LoadConfig()
@@ -91,7 +114,6 @@ func main() {
 
 	if cfg.DefaultAdmin == "true" {
 		adminSeeder := seed.NewUserSeeder(dbPool)
-
 		err = adminSeeder.SeedAdmin(ctx)
 		if err != nil {
 			log.Printf("Unable to seed admin: %v\n", err)
@@ -103,19 +125,14 @@ func main() {
 		if grpcPort == "" {
 			grpcPort = "9091"
 		}
-
 		log.Printf("Starting gRPC server on port %s", grpcPort)
 		lis, err := net.Listen("tcp", ":"+grpcPort)
 		if err != nil {
 			log.Fatalf("failed to listen for gRPC: %v", err)
 		}
-
 		grpcServer := grpc.NewServer()
-
 		grpcImplementation := userGrpc.NewUserGrpcServer(userRepo)
-
 		pb.RegisterUserServiceServer(grpcServer, grpcImplementation)
-
 		if err := grpcServer.Serve(lis); err != nil {
 			log.Fatalf("failed to serve gRPC: %v", err)
 		}
@@ -124,18 +141,20 @@ func main() {
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.Default()
 
+	// CORS Middleware
 	router.Use(func(c *gin.Context) {
 		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
 		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(204)
 			return
 		}
-
 		c.Next()
 	})
+
+	// Swagger Route
+	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
@@ -184,14 +203,11 @@ func main() {
 			admin.GET("/users", adminHandler.GetAllUsers)
 			admin.DELETE("/users/:user_id", adminHandler.DeleteUser)
 			admin.PUT("/users/role", adminHandler.UpdateUserRole)
-
 			admin.POST("/bans", adminHandler.BanUser)
 			admin.DELETE("/bans/:user_id", adminHandler.UnbanUser)
 			admin.GET("/bans/:user_id/history", adminHandler.GetUserBanHistory)
-
 			admin.GET("/audit-logs", adminHandler.GetAuditLogs)
 			admin.GET("/audit-logs/user/:user_id", adminHandler.GetUserAuditLogs)
-
 			admin.GET("/stats", adminHandler.GetDashboardStats)
 		}
 

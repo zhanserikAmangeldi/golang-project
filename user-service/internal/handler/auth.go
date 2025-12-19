@@ -2,7 +2,6 @@ package handler
 
 import (
 	"errors"
-	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/zhanserikAmangeldi/user-service/internal/dto"
 	"github.com/zhanserikAmangeldi/user-service/internal/middleware"
@@ -35,6 +34,15 @@ func getClientInfo(c *gin.Context) (*string, *string) {
 	return userAgentStr, ipPtr
 }
 
+// Register godoc
+// @Summary Регистрация нового пользователя
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param request body dto.RegisterUserRequest true "Данные"
+// @Success 201 {object} dto.AuthResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Router /api/v1/auth/register [post]
 func (h *AuthHandler) Register(c *gin.Context) {
 	var req dto.RegisterUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -65,6 +73,15 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	c.JSON(http.StatusCreated, authResp)
 }
 
+// Login godoc
+// @Summary Вход пользователя
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param request body dto.LoginRequest true "Логин"
+// @Success 200 {object} dto.AuthResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Router /api/v1/auth/login [post]
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req dto.LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -95,6 +112,14 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	c.JSON(http.StatusOK, authResp)
 }
 
+// RefreshToken godoc
+// @Summary Обновить токен
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param request body dto.RefreshTokenRequest true "Токен"
+// @Success 200 {object} dto.AuthResponse
+// @Router /api/v1/auth/refresh [post]
 func (h *AuthHandler) RefreshToken(c *gin.Context) {
 	var req dto.RefreshTokenRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -118,6 +143,14 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 	c.JSON(http.StatusOK, authResp)
 }
 
+// Logout godoc
+// @Summary Выход
+// @Tags auth
+// @Security ApiKeyAuth
+// @Accept json
+// @Param request body dto.TokensRequest true "Токены"
+// @Success 200 {string} string "ok"
+// @Router /api/v1/auth/logout [post]
 func (h *AuthHandler) Logout(c *gin.Context) {
 	var req dto.TokensRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -142,9 +175,14 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 	})
 }
 
+// LogoutAll godoc
+// @Summary Выход со всех устройств
+// @Tags auth
+// @Security ApiKeyAuth
+// @Success 200 {string} string "ok"
+// @Router /api/v1/auth/logout-all [post]
 func (h *AuthHandler) LogoutAll(c *gin.Context) {
 	userID := middleware.GetUserID(c)
-	fmt.Println(userID)
 	if userID == 0 {
 		c.JSON(http.StatusUnauthorized, dto.ErrorResponse{
 			Error: "unauthorized",
@@ -166,6 +204,13 @@ func (h *AuthHandler) LogoutAll(c *gin.Context) {
 	})
 }
 
+// GetActiveSessions godoc
+// @Summary Активные сессии
+// @Tags auth
+// @Security ApiKeyAuth
+// @Param current_token query string false "Token"
+// @Success 200 {array} interface{}
+// @Router /api/v1/auth/sessions [get]
 func (h *AuthHandler) GetActiveSessions(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 	if userID == 0 {

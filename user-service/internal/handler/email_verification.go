@@ -14,6 +14,15 @@ func NewEmailVerificationHandler(authService *service.AuthService) *EmailVerific
 	return &EmailVerificationHandler{authService: authService}
 }
 
+// VerifyEmail godoc
+// @Summary Подтверждение Email
+// @Description Проверяет токен из ссылки, отправленной на почту, и активирует аккаунт
+// @Tags auth
+// @Produce json
+// @Param token query string true "Токен подтверждения"
+// @Success 200 {object} map[string]string "message: email verified successfully"
+// @Failure 400 {object} map[string]string "error: invalid or expired token"
+// @Router /verify-email [get]
 func (h *EmailVerificationHandler) VerifyEmail(c *gin.Context) {
 	token := c.Query("token")
 	if token == "" {
