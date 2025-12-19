@@ -118,8 +118,8 @@ golang-project/
 │   ├── proto/
 │   └── Dockerfile 
 ```
-🔍 Troubleshooting
-Safari/Chrome "Not Found": Ensure you are hitting the correct port. The Chat Service Swagger is usually at http://localhost:8082/swagger/index.html.
+
+The User Service Swagger is usually at http://localhost:8082/swagger/index.html.
 
 Database Connection Issues: Check if the containers are "Healthy" using docker-compose ps.
 
