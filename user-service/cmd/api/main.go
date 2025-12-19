@@ -12,6 +12,12 @@ import (
 	"github.com/redis/go-redis/v9"
 	"google.golang.org/grpc"
 
+	// --- ДОБАВЛЕНО ДЛЯ SWAGGER ---
+	_ "github.com/zhanserikAmangeldi/user-service/docs"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
+	// -----------------------------
+
 	"github.com/zhanserikAmangeldi/user-service/internal/config"
 	userGrpc "github.com/zhanserikAmangeldi/user-service/internal/grpc"
 	"github.com/zhanserikAmangeldi/user-service/internal/handler"
@@ -24,10 +30,20 @@ import (
 	pb "github.com/zhanserikAmangeldi/user-service/proto"
 )
 
+// @title User Service API
+// @version 1.0
+// @description API микросервиса пользователей.
+// @host localhost:8081
+// @BasePath /
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+
 func main() {
 	cfg := config.LoadConfig()
 	ctx := context.Background()
 
+	// Используем переменные из конфига (которые привязаны к USER_DB)
 	dbURL := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable",
 		cfg.DBUser, cfg.DBPassword, cfg.DBHost, cfg.DBPort, cfg.DBName)
 
@@ -97,10 +113,8 @@ func main() {
 		}
 
 		grpcServer := grpc.NewServer()
-
 		grpcImplementation := userGrpc.NewUserGrpcServer(userRepo)
 
-		// Register the server
 		pb.RegisterUserServiceServer(grpcServer, grpcImplementation)
 
 		if err := grpcServer.Serve(lis); err != nil {
@@ -123,6 +137,10 @@ func main() {
 
 		c.Next()
 	})
+
+	// --- ДОБАВЛЕНО: ЭНДПОИНТ ДЛЯ SWAGGER ---
+	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+	// ---------------------------------------
 
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{

@@ -35,6 +35,14 @@ func getClientInfo(c *gin.Context) (*string, *string) {
 	return userAgentStr, ipPtr
 }
 
+// Register godoc
+// @Summary Регистрация пользователя
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param request body dto.RegisterUserRequest true "Данные регистрации"
+// @Success 201 {object} dto.AuthResponse
+// @Router /api/v1/auth/register [post]
 func (h *AuthHandler) Register(c *gin.Context) {
 	var req dto.RegisterUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -65,6 +73,14 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	c.JSON(http.StatusCreated, authResp)
 }
 
+// Login godoc
+// @Summary Авторизация пользователя
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param request body dto.LoginRequest true "Данные логина"
+// @Success 200 {object} dto.AuthResponse
+// @Router /api/v1/auth/login [post]
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req dto.LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -95,6 +111,14 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	c.JSON(http.StatusOK, authResp)
 }
 
+// RefreshToken godoc
+// @Summary Обновление токена
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param request body dto.RefreshTokenRequest true "Токен обновления"
+// @Success 200 {object} dto.AuthResponse
+// @Router /api/v1/auth/refresh [post]
 func (h *AuthHandler) RefreshToken(c *gin.Context) {
 	var req dto.RefreshTokenRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

@@ -14,6 +14,12 @@ func NewEmailVerificationHandler(authService *service.AuthService) *EmailVerific
 	return &EmailVerificationHandler{authService: authService}
 }
 
+// VerifyEmail godoc
+// @Summary Верификация email по токену
+// @Tags auth
+// @Param token query string true "Токен из письма"
+// @Success 200 {object} map[string]string
+// @Router /verify-email [get]
 func (h *EmailVerificationHandler) VerifyEmail(c *gin.Context) {
 	token := c.Query("token")
 	if token == "" {

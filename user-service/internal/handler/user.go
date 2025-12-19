@@ -2,7 +2,7 @@ package handler
 
 import (
 	"errors"
-	"fmt"
+	// "fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/zhanserikAmangeldi/user-service/internal/dto"
 	"github.com/zhanserikAmangeldi/user-service/internal/middleware"
@@ -18,9 +18,16 @@ func NewUserHandler(userRepo *repository.UserRepository) *UserHandler {
 	return &UserHandler{userRepo: userRepo}
 }
 
+// GetMe godoc
+// @Summary Получить информацию о текущем пользователе
+// @Security BearerAuth
+// @Tags users
+// @Accept json
+// @Produce json
+// @Success 200 {object} map[string]interface{}
+// @Router /api/v1/users/me [get]
 func (h *UserHandler) GetMe(c *gin.Context) {
 	userID := middleware.GetUserID(c)
-	fmt.Println(userID)
 	if userID == 0 {
 		c.JSON(http.StatusUnauthorized, dto.ErrorResponse{
 			Error: "unauthorized",
@@ -46,6 +53,15 @@ func (h *UserHandler) GetMe(c *gin.Context) {
 	c.JSON(http.StatusOK, user)
 }
 
+// UpdateMe godoc
+// @Summary Обновить профиль текущего пользователя
+// @Security BearerAuth
+// @Tags users
+// @Accept json
+// @Produce json
+// @Param request body dto.UpdateUserRequest true "Данные обновления"
+// @Success 200 {object} map[string]interface{}
+// @Router /api/v1/users/me [put]
 func (h *UserHandler) UpdateMe(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 	if userID == 0 {
@@ -96,6 +112,15 @@ func (h *UserHandler) UpdateMe(c *gin.Context) {
 	c.JSON(http.StatusOK, user)
 }
 
+// GetUserByID godoc
+// @Summary Получить пользователя по ID
+// @Security BearerAuth
+// @Tags users
+// @Accept json
+// @Produce json
+// @Param id path int true "User ID"
+// @Success 200 {object} map[string]interface{}
+// @Router /api/v1/users/{id} [get]
 func (h *UserHandler) GetUserByID(c *gin.Context) {
 	var uriParam struct {
 		ID int64 `uri:"id" binding:"required,min=1"`

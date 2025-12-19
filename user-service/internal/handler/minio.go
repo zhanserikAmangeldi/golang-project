@@ -23,6 +23,14 @@ func NewMinioHandler(minioService *service.Minio, userRepo *repository.UserRepos
 	}
 }
 
+// UploadAvatar godoc
+// @Summary Загрузить аватар
+// @Security BearerAuth
+// @Tags users
+// @Accept multipart/form-data
+// @Param avatar formData file true "Файл изображения"
+// @Success 200 {object} map[string]string
+// @Router /api/v1/users/upload-avatar [post]
 func (m *MinioHandler) UploadAvatar(c *gin.Context) {
 	fileHeader, err := c.FormFile("avatar")
 	if err != nil {
@@ -69,6 +77,13 @@ func (m *MinioHandler) UploadAvatar(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Avatar uploaded successfully", "path": objectName})
 }
 
+// GetAvatar godoc
+// @Summary Получить файл аватара
+// @Security BearerAuth
+// @Tags users
+// @Produce image/png
+// @Success 200 {string} binary
+// @Router /api/v1/users/get-avatar [get]
 func (m *MinioHandler) GetAvatar(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 

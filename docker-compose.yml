@@ -3,15 +3,15 @@ services:
     image: postgres:16
     container_name: user_postgres
     environment:
-      POSTGRES_DB: ${USER_DB_NAME}
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: chatapp_user
+      POSTGRES_USER: chatuser
+      POSTGRES_PASSWORD: chatpass123
     ports:
-      - "${USER_DB_PORT_FORWARD}:5432"
+      - "54321:5432"
     volumes:
       - user_postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${USER_DB_NAME}"]
+      test: ["CMD-SHELL", "pg_isready -U chatuser -d chatapp_user"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -22,15 +22,15 @@ services:
     image: postgres:16
     container_name: chat_postgres
     environment:
-      POSTGRES_DB: ${CHAT_DB_NAME}
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: chatapp_chat
+      POSTGRES_USER: chatuser
+      POSTGRES_PASSWORD: chatpass123
     ports:
-      - "${CHAT_DB_PORT_FORWARD}:5432"
+      - "54322:5432"
     volumes:
       - chat_postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U ${DB_USER} -d ${CHAT_DB_NAME}" ]
+      test: [ "CMD-SHELL", "pg_isready -U chatuser -d chatapp_chat" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -41,7 +41,7 @@ services:
     image: redis:7-alpine
     container_name: chat_redis
     ports:
-      - "${REDIS_PORT}:6379"
+      - "6379:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -56,64 +56,47 @@ services:
     image: minio/minio
     container_name: minio
     ports:
-      - "${MINIO_API_PORT}:9000"
-      - "${MINIO_UI_PORT}:9001"
+      - "9000:9000"
+      - "9001:9001"
     environment:
-      MINIO_ROOT_USER: ${MINIO_USER}
-      MINIO_ROOT_PASSWORD: ${MINIO_PASSWORD}
+      MINIO_ROOT_USER: admin
+      MINIO_ROOT_PASSWORD: admin123
     command: server /data --console-address ":9001"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 30s
       timeout: 20s
       retries: 3
-      start_period: 5s
     volumes:
       - minio_data:/data
     networks:
       - chat-network
 
-#  rabbitmq:
-#    image: rabbitmq:3-management-alpine
-#    container_name: chat_rabbitmq
-#    environment:
-#      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
-#      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
-#    ports:
-#      - "5672:5672"
-#      - "15672:15672"
-#    volumes:
-#      - rabbitmq_data:/var/lib/rabbitmq
-#    healthcheck:
-#      test: ["CMD", "rabbitmq-diagnostics", "ping"]
-#      interval: 10s
-#      timeout: 5s
-#      retries: 5
-#    networks:
-#      - chat-network
-
   user_service:
-    build: ./user-service
+    build: 
+      context: ./user-service
     container_name: user_service
     depends_on:
       user_postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-      minio:
-        condition: service_healthy
-#      rabbitmq:
-#        condition: service_healthy
     env_file:
       - .env
     ports:
-      - "${USER_HTTP_PORT}:${HTTP_PORT}"
-      - "${USER_GRPC_PORT}:${GRPC_PORT}"
+      - "8081:8081"
+      - "9091:9091"
+    healthcheck:
+      test: [ "CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8081/health || exit 1" ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
     networks:
       - chat-network
 
   chat_service:
-    build: ./chat-service
+    build:
+      context: ./chat-service
     container_name: chat_service
     depends_on:
       chat_postgres:
@@ -122,22 +105,39 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
-    #      rabbitmq:
-    #        condition: service_healthy
     env_file:
       - .env
     ports:
-      - "${CHAT_HTTP_PORT}:${CHAT_HTTP_PORT}"
-      - "${CHAT_GRPC_PORT}:${CHAT_GRPC_PORT}"
+      - "8082:8082"
+      - "9092:9092"
+    healthcheck:
+      test: [ "CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8082/health || exit 1" ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
     networks:
       - chat-network
+
+  # api-gateway:
+  #   build: ./api-gateway
+  #   container_name: api_gateway
+  #   depends_on:
+  #     user_service:
+  #       condition: service_healthy
+  #     chat_service:
+  #       condition: service_healthy
+  #   env_file:
+  #     - .env
+  #   ports:
+  #     - "8080:8080"
+  #   networks:
+  #     - chat-network
 
 volumes:
   user_postgres_data:
   chat_postgres_data:
   redis_data:
   minio_data:
-#  rabbitmq_data:
 
 networks:
   chat-network:
