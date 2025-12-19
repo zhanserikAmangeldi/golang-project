@@ -325,12 +325,12 @@ func proxyRequest(targetURL string, timeout time.Duration) gin.HandlerFunc {
 				req.Header.Set("X-Forwarded-Proto", c.Request.Proto)
 
 				if gin.Mode() == gin.DebugMode {
-					log.Printf("🔄 Proxying: %s %s → %s%s",
+					log.Printf("Proxying: %s %s → %s%s",
 						req.Method, originalPath, target.Host, targetPath)
 				}
 			},
 			ErrorHandler: func(rw http.ResponseWriter, req *http.Request, err error) {
-				log.Printf("❌ Proxy error for %s: %v", target.Host, err)
+				log.Printf("Proxy error for %s: %v", target.Host, err)
 
 				c.JSON(http.StatusBadGateway, gin.H{
 					"error":   "Service temporarily unavailable",
